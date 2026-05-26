@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Disposal MPR Portal | Fixed Age Calculation</title>
+    <title>Disposal MPR | Month-wise Report</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -178,31 +178,16 @@
 
 <div class="container">
     <div class="header">
-        <h1><i class="fas fa-chart-line"></i> Disposal MPR Portal</h1>
+        <h1><i class="fas fa-chart-line"></i> Month-wise Disposal MPR</h1>
         <div class="badge"><i class="fas fa-database"></i> Real-time Firebase</div>
     </div>
 
     <div class="toolbar">
-        <button id="refreshMprBtn" class="primary"><i class="fas fa-chart-simple"></i> Refresh Age MPR</button>
         <button id="importExcelBtn" class="primary"><i class="fas fa-file-excel"></i> Import Disposal Excel</button>
         <button id="showAllBtn"><i class="fas fa-list"></i> Show All Disposals</button>
         <button id="checkFirebaseBtn" class="outline"><i class="fas fa-database"></i> Check Firebase Data</button>
         <button id="addTestDataBtn" class="outline"><i class="fas fa-flask"></i> Add Test Disposal</button>
-        <button id="showDebugBtn" class="outline"><i class="fas fa-bug"></i> Show Debug Info</button>
         <input type="file" id="excelInput" style="display:none" accept=".xlsx,.xls,.csv">
-    </div>
-
-    <!-- Age-based Disposal MPR (overall) -->
-    <div class="card">
-        <h3><i class="fas fa-chart-bar"></i> Disposal MPR (Age at Disposal)</h3>
-        <div style="overflow-x: auto;">
-            <table id="mprTable">
-                <thead>
-                    <tr><th>S.No.</th><th>Office Name</th><th>Total Disposal</th><th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th></tr>
-                </thead>
-                <tbody id="mprBody"><tr><td colspan="8">Loading disposals...--</tbody>
-            </table>
-        </div>
     </div>
 
     <!-- Month-wise Disposal MPR with Date Range (dd-mm-yyyy) -->
@@ -224,8 +209,15 @@
             <table id="monthMprTable">
                 <thead>
                     <tr>
-                        <th>S.No.</th><th>Office Name</th><th>Year-Month</th><th>Total Disposal</th>
-                        <th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th>
+                        <th>S.No.</th>
+                        <th>Office Name</th>
+                        <th>Year-Month</th>
+                        <th>Total Disposal</th>
+                        <th>Over 5 Years</th>
+                        <th>Over 3 Years</th>
+                        <th>Over 2 Years</th>
+                        <th>Over 1 Year</th>
+                        <th>Less Than 1 Year</th>
                     </tr>
                 </thead>
                 <tbody id="monthMprBody"><tr><td colspan="9">Enter dates and click Generate.</tbody>
@@ -253,29 +245,29 @@
         <h3><i class="fas fa-list"></i> All Disposal Records <button id="closeListBtn" style="float:right;">✕ Close</button></h3>
         <div class="list-table">
             <table id="allDisposalsTable">
-                <thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></td></thead>
+                <thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></tr></thead>
                 <tbody id="allDisposalsBody"></tbody>
             </table>
         </div>
     </div>
-
-    <!-- Debug Panel -->
-    <div id="debugPanel" class="debug-panel" style="display: none;">
-        <strong>🔍 Debug: Sample Disposal Records (max 5)</strong>
-        <div id="debugContent"></div>
-    </div>
 </div>
 
-<!-- Modals (same as before) -->
+<!-- Modal for detailed case list -->
 <div id="detailModal" class="modal">
     <div class="modal-content">
         <span class="close-modal" id="closeModalBtn">&times;</span>
         <h3 id="modalTitle">Case List</h3>
-        <div style="overflow-x: auto;"><table id="modalTable"><thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></tr></thead><tbody id="modalBody"></tbody></table></div>
+        <div style="overflow-x: auto;">
+            <table id="modalTable">
+                <thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></td></thead>
+                <tbody id="modalBody"></tbody>
+            </table>
+        </div>
         <div style="margin-top:15px;"><button id="exportModalExcel" class="primary">Export to Excel</button></div>
     </div>
 </div>
 
+<!-- Modal for Firebase raw data -->
 <div id="firebaseDataModal" class="modal">
     <div class="modal-content">
         <span class="close-modal" id="closeFirebaseModal">&times;</span>
@@ -334,7 +326,20 @@
         return null;
     }
 
-    // Calculate age in years (exact based on dates)
+    function parseDDMMYYYY(dateStr) {
+        if (!dateStr) return null;
+        let str = dateStr.trim();
+        let parts = str.split('-');
+        if (parts.length !== 3) return null;
+        let day = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10);
+        let year = parseInt(parts[2], 10);
+        if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+        if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+        return new Date(year, month-1, day);
+    }
+
+    // Calculate age in years (exact)
     function getAgeYears(instDate, disposalDate) {
         let inst = new Date(instDate);
         let disp = new Date(disposalDate);
@@ -355,67 +360,42 @@
         return "Less Than 1 Year";
     }
 
-    // Overall MPR
-    function computeOverallMPR() {
-        let total = disposals.length;
-        let buckets = { "Over 5 Years": 0, "Over 3 Years": 0, "Over 2 Years": 0, "Over 1 Year": 0, "Less Than 1 Year": 0 };
-        let bucketCases = { "Over 5 Years": [], "Over 3 Years": [], "Over 2 Years": [], "Over 1 Year": [], "Less Than 1 Year": [] };
-        disposals.forEach(d => {
-            let age = getAgeYears(d.institutionDate, d.disposalDate);
-            let bucket = getBucket(age);
-            buckets[bucket]++;
-            bucketCases[bucket].push(d);
-            console.log(`Case ${d.caseNo}: Inst=${d.institutionDate}, Disp=${d.disposalDate}, Age=${age} years → ${bucket}`);
-        });
-        return { total, buckets, bucketCases };
-    }
-
-    function renderOverallMPR() {
-        const mpr = computeOverallMPR();
-        const officeName = "राजस्व मंडल, निवाई";
-        const row = `<tr>
-            <td>1${officeName}${mpr.total}
-            <td class="clickable-count" data-bucket="Over 5 Years">${mpr.buckets["Over 5 Years"]}
-            <td class="clickable-count" data-bucket="Over 3 Years">${mpr.buckets["Over 3 Years"]}
-            <td class="clickable-count" data-bucket="Over 2 Years">${mpr.buckets["Over 2 Years"]}
-            <td class="clickable-count" data-bucket="Over 1 Year">${mpr.buckets["Over 1 Year"]}
-            <td class="clickable-count" data-bucket="Less Than 1 Year">${mpr.buckets["Less Than 1 Year"]}
-        </tr>`;
-        document.getElementById("mprBody").innerHTML = row;
-        document.querySelectorAll('#mprBody .clickable-count').forEach(el => {
-            el.addEventListener('click', () => {
-                const bucket = el.getAttribute('data-bucket');
-                const cases = mpr.bucketCases[bucket];
-                if (!cases || cases.length === 0) { showToast("No cases in this bucket", true); return; }
-                showCaseList(`${bucket} (${cases.length} cases)`, cases);
-            });
-        });
-        updateDebugPanel();
-    }
-
-    // Month-wise MPR (unchanged but uses same helpers)
+    // Month-wise MPR with date range
     function renderMonthMpr() {
         let startStr = document.getElementById("monthStartDate").value.trim();
         let endStr = document.getElementById("monthEndDate").value.trim();
-        if (!startStr || !endStr) { showToast("Enter both dates", true); return; }
+        if (!startStr || !endStr) {
+            showToast("Enter both start and end dates", true);
+            return;
+        }
         let startDate = parseDDMMYYYY(startStr);
         let endDate = parseDDMMYYYY(endStr);
-        if (!startDate || !endDate) { showToast("Invalid date format (use dd-mm-yyyy)", true); return; }
-        if (startDate > endDate) { showToast("Start date must be before end date", true); return; }
+        if (!startDate || !endDate) {
+            showToast("Invalid date format. Use dd-mm-yyyy (e.g., 01-05-2026)", true);
+            return;
+        }
+        if (startDate > endDate) {
+            showToast("Start date must be before end date", true);
+            return;
+        }
 
+        // Filter disposals by disposal date within range
         const filtered = disposals.filter(d => {
             let disp = new Date(d.disposalDate);
             return disp >= startDate && disp <= endDate;
         });
-        const monthMap = new Map();
+
+        // Group by year-month
+        const monthMap = new Map(); // key: "YYYY-MM", value: array of disposals
         filtered.forEach(d => {
             let date = new Date(d.disposalDate);
             let key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
             if (!monthMap.has(key)) monthMap.set(key, []);
             monthMap.get(key).push(d);
         });
+
         const sortedMonths = Array.from(monthMap.keys()).sort();
-        const officeName = "राजस्व मंडल, निवाई";
+        const officeName = "Assistant Collector (Fastrack), Niwai";
         let html = "";
         let sno = 1;
         for (let month of sortedMonths) {
@@ -431,51 +411,41 @@
             });
             html += `<tr>
                 <td>${sno++}${officeName}${month}
-                <td class="clickable-month-total" data-month="${month}">${total}
-                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}
-                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}
-                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}
-                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}
-                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}
+                <td class="clickable-total" data-month="${month}">${total}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}
             </tr>`;
+            // Store bucket cases for click handlers
             if (!window._monthBucketCases) window._monthBucketCases = {};
             window._monthBucketCases[month] = bucketCases;
         }
-        if (html === "") html = '<tr><td colspan="9">No disposals in selected date range.';
+        if (html === "") html = '<tr><td colspan="9">No disposals in selected date range. Try expanding the range or import data.';
         document.getElementById("monthMprBody").innerHTML = html;
-        attachMonthClickHandlers(monthMap);
+        attachClickHandlers(monthMap);
     }
 
-    function attachMonthClickHandlers(monthMap) {
-        document.querySelectorAll('.clickable-month-total').forEach(el => {
+    function attachClickHandlers(monthMap) {
+        // Total disposal clicks
+        document.querySelectorAll('.clickable-total').forEach(el => {
             el.addEventListener('click', () => {
                 const month = el.getAttribute('data-month');
                 const cases = monthMap.get(month);
                 if (cases && cases.length) showCaseList(`All disposals in ${month} (${cases.length} cases)`, cases);
             });
         });
-        document.querySelectorAll('.clickable-month-bucket').forEach(el => {
+        // Bucket clicks
+        document.querySelectorAll('.clickable-bucket').forEach(el => {
             el.addEventListener('click', () => {
                 const month = el.getAttribute('data-month');
                 const bucket = el.getAttribute('data-bucket');
                 const bucketCases = window._monthBucketCases?.[month]?.[bucket];
                 if (bucketCases && bucketCases.length) showCaseList(`${month} - ${bucket} (${bucketCases.length} cases)`, bucketCases);
-                else showToast("No cases", true);
+                else showToast("No cases in this bucket", true);
             });
         });
-    }
-
-    function parseDDMMYYYY(dateStr) {
-        if (!dateStr) return null;
-        let str = dateStr.trim();
-        let parts = str.split('-');
-        if (parts.length !== 3) return null;
-        let day = parseInt(parts[0], 10);
-        let month = parseInt(parts[1], 10);
-        let year = parseInt(parts[2], 10);
-        if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-        if (day < 1 || day > 31 || month < 1 || month > 12) return null;
-        return new Date(year, month-1, day);
     }
 
     function showCaseList(title, caseArray) {
@@ -610,7 +580,7 @@
         };
         const newId = Date.now().toString();
         disposalsRef.child(newId).set(testCase)
-            .then(() => showToast("Test disposal added. Refresh MPR to see."))
+            .then(() => showToast("Test disposal added. Generate month-wise MPR to see."))
             .catch(err => showToast("Error: " + err.message, true));
     }
 
@@ -634,26 +604,6 @@
         showToast("End date set to today");
     }
 
-    function updateDebugPanel() {
-        const debugDiv = document.getElementById('debugContent');
-        const samples = disposals.slice(0, 5).map(d => {
-            const age = getAgeYears(d.institutionDate, d.disposalDate);
-            const bucket = getBucket(age);
-            return `Case: ${d.caseNo}, Inst: ${d.institutionDate}, Disp: ${d.disposalDate}, Age: ${age.toFixed(2)} years → ${bucket}`;
-        });
-        if (samples.length) {
-            debugDiv.innerHTML = samples.join('<br>');
-        } else {
-            debugDiv.innerHTML = "No data. Import Excel or add test data.";
-        }
-    }
-
-    function showDebugPanel() {
-        const panel = document.getElementById('debugPanel');
-        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-        if (panel.style.display === 'block') updateDebugPanel();
-    }
-
     function showToast(msg, isError = false) {
         const toast = document.createElement('div');
         toast.className = 'toast';
@@ -667,9 +617,9 @@
     disposalsRef.on('value', (snapshot) => {
         const data = snapshot.val();
         disposals = data ? Object.values(data) : [];
-        console.log("Firebase updated. Total:", disposals.length);
-        renderOverallMPR();
-        // Also update all disposals list if open
+        console.log("Firebase updated. Total disposals:", disposals.length);
+        // We do NOT auto-render month MPR because it depends on date range.
+        // But we can update the "Show All" list if open.
         if (document.getElementById('listContainer').style.display === 'block') {
             const tbody = document.getElementById('allDisposalsBody');
             tbody.innerHTML = '';
@@ -688,7 +638,6 @@
     });
 
     // Event listeners
-    document.getElementById("refreshMprBtn").onclick = () => renderOverallMPR();
     document.getElementById("importExcelBtn").onclick = () => document.getElementById("excelInput").click();
     document.getElementById("excelInput").onchange = (e) => {
         if (e.target.files.length) importExcel(e.target.files[0]);
@@ -718,7 +667,6 @@
     };
     document.getElementById("checkFirebaseBtn").onclick = checkFirebaseData;
     document.getElementById("addTestDataBtn").onclick = addTestDisposal;
-    document.getElementById("showDebugBtn").onclick = showDebugPanel;
     document.getElementById("closeModalBtn").onclick = () => document.getElementById("detailModal").style.display = "none";
     document.getElementById("closeFirebaseModal").onclick = () => document.getElementById("firebaseDataModal").style.display = "none";
     window.onclick = (event) => {
