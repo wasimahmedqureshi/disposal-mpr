@@ -184,14 +184,14 @@
                 <thead>
                     <tr><th>S.No.</th><th>Office Name</th><th>Total Disposal</th><th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th></tr>
                 </thead>
-                <tbody id="mprBody"><tr><td colspan="8">Loading disposals...</td></tr></tbody>
+                <tbody id="mprBody"><tr><td colspan="8">Loading disposals...--</tbody>
             </table>
         </div>
     </div>
 
-    <!-- Month-wise Disposal MPR with Date Range -->
+    <!-- Month-wise Disposal MPR with Date Range and Age Buckets -->
     <div class="card">
-        <h3><i class="fas fa-calendar-alt"></i> Month-wise Disposal MPR</h3>
+        <h3><i class="fas fa-calendar-alt"></i> Month-wise Disposal MPR (Age at Disposal)</h3>
         <div class="date-range">
             <div class="form-group">
                 <label>Start Date</label>
@@ -205,8 +205,13 @@
         </div>
         <div style="overflow-x: auto; margin-top: 15px;">
             <table id="monthMprTable">
-                <thead><tr><th>Year-Month</th><th>Number of Disposals</th></tr></thead>
-                <tbody id="monthMprBody"><tr><td colspan="2">Select date range and click Generate.</td></tr></tbody>
+                <thead>
+                    <tr>
+                        <th>S.No.</th><th>Office Name</th><th>Year-Month</th><th>Total Disposal</th>
+                        <th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th>
+                    </tr>
+                </thead>
+                <tbody id="monthMprBody"><tr><td colspan="9">Select date range and click Generate.--</tbody>
             </table>
         </div>
     </div>
@@ -270,9 +275,8 @@
     const database = firebase.database();
     const disposalsRef = database.ref('disposals');
 
-    let disposals = []; // array of disposal objects
+    let disposals = [];
 
-    // Helper: parse date from various formats
     function parseDateAny(dateVal) {
         if (!dateVal) return null;
         let s = String(dateVal).trim();
@@ -297,7 +301,6 @@
         return null;
     }
 
-    // Calculate age in years between institution date and disposal date
     function getAgeYears(instDate, disposalDate) {
         let inst = new Date(instDate);
         let disp = new Date(disposalDate);
@@ -316,8 +319,8 @@
         return "Less Than 1 Year";
     }
 
-    // Compute age-based MPR
-    function computeMPR() {
+    // Overall age-based MPR
+    function computeOverallMPR() {
         let total = disposals.length;
         let buckets = { "Over 5 Years": 0, "Over 3 Years": 0, "Over 2 Years": 0, "Over 1 Year": 0, "Less Than 1 Year": 0 };
         let bucketCases = { "Over 5 Years": [], "Over 3 Years": [], "Over 2 Years": [], "Over 1 Year": [], "Less Than 1 Year": [] };
@@ -330,9 +333,8 @@
         return { total, buckets, bucketCases };
     }
 
-    // Render age-based MPR
-    function renderMPR() {
-        const mpr = computeMPR();
+    function renderOverallMPR() {
+        const mpr = computeOverallMPR();
         const officeName = "राजस्व मंडल, निवाई";
         const row = `<tr>
             <td>1</td>
@@ -345,7 +347,7 @@
             <td class="clickable-count" data-bucket="Less Than 1 Year">${mpr.buckets["Less Than 1 Year"]}</td>
         </tr>`;
         document.getElementById("mprBody").innerHTML = row;
-        document.querySelectorAll('.clickable-count').forEach(el => {
+        document.querySelectorAll('#mprBody .clickable-count').forEach(el => {
             el.addEventListener('click', () => {
                 const bucket = el.getAttribute('data-bucket');
                 const cases = mpr.bucketCases[bucket];
@@ -355,7 +357,7 @@
         });
     }
 
-    // Month-wise MPR based on date range
+    // Month-wise MPR with age buckets
     function renderMonthMpr() {
         let startDate = document.getElementById("monthStartDate").value;
         let endDate = document.getElementById("monthEndDate").value;
@@ -369,13 +371,13 @@
             showToast("Invalid date range", true);
             return;
         }
-        // Filter disposals within date range (by disposal date)
+        // Filter disposals by disposal date within range
         const filtered = disposals.filter(d => {
             let disp = new Date(d.disposalDate);
             return disp >= start && disp <= end;
         });
         // Group by year-month
-        const monthMap = new Map(); // key: "YYYY-MM", value: array of cases
+        const monthMap = new Map(); // key: "YYYY-MM", value: array of disposals in that month
         filtered.forEach(d => {
             let date = new Date(d.disposalDate);
             let key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
@@ -384,31 +386,61 @@
         });
         // Sort months chronologically
         const sortedMonths = Array.from(monthMap.keys()).sort();
+        const officeName = "राजस्व मंडल, निवाई";
         let html = "";
-        if (sortedMonths.length === 0) {
-            html = '<tr><td colspan="2">No disposals in selected date range</td></tr>';
-        } else {
-            sortedMonths.forEach(month => {
-                const count = monthMap.get(month).length;
-                html += `<tr>
-                    <td>${month}</td>
-                    <td class="clickable-month" data-month="${month}">${count}</td>
-                </tr>`;
+        let sno = 1;
+        for (let month of sortedMonths) {
+            const casesInMonth = monthMap.get(month);
+            const total = casesInMonth.length;
+            // Compute age buckets for this month
+            let bucketCounts = { "Over 5 Years": 0, "Over 3 Years": 0, "Over 2 Years": 0, "Over 1 Year": 0, "Less Than 1 Year": 0 };
+            let bucketCases = { "Over 5 Years": [], "Over 3 Years": [], "Over 2 Years": [], "Over 1 Year": [], "Less Than 1 Year": [] };
+            casesInMonth.forEach(d => {
+                let age = getAgeYears(d.institutionDate, d.disposalDate);
+                let bucket = getBucket(age);
+                bucketCounts[bucket]++;
+                bucketCases[bucket].push(d);
             });
+            html += `<tr>
+                <td>${sno++}</td>
+                <td>${officeName}</td>
+                <td>${month}</td>
+                <td class="clickable-month-total" data-month="${month}">${total}</td>
+                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}</td>
+                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}</td>
+                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}</td>
+                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}</td>
+                <td class="clickable-month-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}</td>
+            </tr>`;
+            // Store bucketCases for this month in a global object for click handling
+            if (!window._monthBucketCases) window._monthBucketCases = {};
+            window._monthBucketCases[month] = bucketCases;
+        }
+        if (html === "") {
+            html = '<tr><td colspan="9">No disposals in selected date range</td></tr>';
         }
         document.getElementById("monthMprBody").innerHTML = html;
-        // Attach click handlers for month counts
-        document.querySelectorAll('.clickable-month').forEach(el => {
+        // Attach click handlers for total disposal per month
+        document.querySelectorAll('.clickable-month-total').forEach(el => {
             el.addEventListener('click', () => {
                 const month = el.getAttribute('data-month');
                 const cases = monthMap.get(month);
-                if (!cases || cases.length === 0) return;
-                showCaseList(`Disposals in ${month} (${cases.length} cases)`, cases);
+                if (cases && cases.length) showCaseList(`All disposals in ${month} (${cases.length} cases)`, cases);
+                else showToast("No cases", true);
+            });
+        });
+        // Attach click handlers for bucket counts per month
+        document.querySelectorAll('.clickable-month-bucket').forEach(el => {
+            el.addEventListener('click', () => {
+                const month = el.getAttribute('data-month');
+                const bucket = el.getAttribute('data-bucket');
+                const bucketCases = window._monthBucketCases?.[month]?.[bucket];
+                if (!bucketCases || bucketCases.length === 0) { showToast("No cases in this bucket for " + month, true); return; }
+                showCaseList(`${month} - ${bucket} (${bucketCases.length} cases)`, bucketCases);
             });
         });
     }
 
-    // Show modal with list of cases
     function showCaseList(title, caseArray) {
         const modal = document.getElementById('detailModal');
         document.getElementById('modalTitle').innerText = title;
@@ -437,7 +469,6 @@
         };
     }
 
-    // Show all disposals in a table (toggle)
     function showAllDisposals() {
         const container = document.getElementById('listContainer');
         const tbody = document.getElementById('allDisposalsBody');
@@ -459,7 +490,6 @@
         }
     }
 
-    // Save a new disposal to Firebase
     function saveDisposal(caseNo, section, instDate, casePurpose, appellant, respondent, disposalDate) {
         if (!caseNo || !instDate || !disposalDate) {
             showToast("Case No, Institution Date and Disposal Date are required", true);
@@ -481,7 +511,6 @@
         return true;
     }
 
-    // Import Excel file
     function importExcel(file) {
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -547,9 +576,7 @@
     disposalsRef.on('value', (snapshot) => {
         const data = snapshot.val();
         disposals = data ? Object.values(data) : [];
-        renderMPR();
-        // If month-wise report is already visible, refresh it automatically? Optional: keep as manual
-        // But we also update the all disposals list if open
+        renderOverallMPR();
         const container = document.getElementById('listContainer');
         if (container.style.display === 'block') {
             const tbody = document.getElementById('allDisposalsBody');
@@ -569,7 +596,7 @@
     });
 
     // Event listeners
-    document.getElementById("refreshMprBtn").onclick = () => renderMPR();
+    document.getElementById("refreshMprBtn").onclick = () => renderOverallMPR();
     document.getElementById("importExcelBtn").onclick = () => document.getElementById("excelInput").click();
     document.getElementById("excelInput").onchange = (e) => {
         if (e.target.files.length) importExcel(e.target.files[0]);
