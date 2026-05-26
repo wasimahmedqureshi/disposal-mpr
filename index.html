@@ -191,17 +191,17 @@
         </div>
     </div>
 
-    <!-- Month-wise Disposal MPR with Date Range (MM/DD/YYYY inputs) -->
+    <!-- Month-wise Disposal MPR with Date Range (dd-mm-yyyy inputs) -->
     <div class="card">
         <h3><i class="fas fa-calendar-alt"></i> Month-wise Disposal MPR (Age at Disposal)</h3>
         <div class="date-range">
             <div class="form-group">
-                <label>Start Date (MM/DD/YYYY)</label>
-                <input type="text" id="monthStartDate" placeholder="MM/DD/YYYY" value="01/01/2026">
+                <label>Start Date (dd-mm-yyyy)</label>
+                <input type="text" id="monthStartDate" placeholder="dd-mm-yyyy" value="01-01-2026">
             </div>
             <div class="form-group">
-                <label>End Date (MM/DD/YYYY)</label>
-                <input type="text" id="monthEndDate" placeholder="MM/DD/YYYY" value="05/31/2026">
+                <label>End Date (dd-mm-yyyy)</label>
+                <input type="text" id="monthEndDate" placeholder="dd-mm-yyyy" value="31-05-2026">
             </div>
             <button id="generateMonthMpr" class="primary"><i class="fas fa-chart-line"></i> Generate Month-wise MPR</button>
             <button id="setTodayBtn" class="outline">Set End Date to Today</button>
@@ -214,7 +214,7 @@
                         <th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th>
                     </tr>
                 </thead>
-                <tbody id="monthMprBody"><td><td colspan="9">Enter dates in MM/DD/YYYY format and click Generate.→</tbody>
+                <tbody id="monthMprBody"><tr><td colspan="9">Enter dates in dd-mm-yyyy format and click Generate.→</tbody>
             </table>
         </div>
     </div>
@@ -280,23 +280,23 @@
 
     let disposals = [];
 
-    // Helper: parse MM/DD/YYYY or YYYY-MM-DD to Date object
+    // Parse date from dd-mm-yyyy or yyyy-mm-dd to Date object
     function parseDateFromString(dateStr) {
         if (!dateStr) return null;
         let s = dateStr.trim();
-        // try MM/DD/YYYY
-        let parts = s.split('/');
+        // try dd-mm-yyyy
+        let parts = s.split('-');
         if (parts.length === 3) {
-            let month = parseInt(parts[0], 10);
-            let day = parseInt(parts[1], 10);
+            let day = parseInt(parts[0], 10);
+            let month = parseInt(parts[1], 10);
             let year = parseInt(parts[2], 10);
-            if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+            if (!isNaN(day) && !isNaN(month) && !isNaN(year) && day>=1 && day<=31 && month>=1 && month<=12) {
                 return new Date(year, month-1, day);
             }
         }
-        // try YYYY-MM-DD (from date input)
+        // try yyyy-mm-dd
         parts = s.split('-');
-        if (parts.length === 3) {
+        if (parts.length === 3 && parts[0].length === 4) {
             let year = parseInt(parts[0], 10);
             let month = parseInt(parts[1], 10);
             let day = parseInt(parts[2], 10);
@@ -387,18 +387,18 @@
         });
     }
 
-    // Month-wise MPR with age buckets using MM/DD/YYYY inputs
+    // Month-wise MPR with date range (dd-mm-yyyy)
     function renderMonthMpr() {
         let startStr = document.getElementById("monthStartDate").value.trim();
         let endStr = document.getElementById("monthEndDate").value.trim();
         if (!startStr || !endStr) {
-            showToast("Please enter both start and end dates in MM/DD/YYYY format", true);
+            showToast("Please enter both start and end dates in dd-mm-yyyy format", true);
             return;
         }
         let startDate = parseDateFromString(startStr);
         let endDate = parseDateFromString(endStr);
         if (!startDate || !endDate || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            showToast("Invalid date format. Use MM/DD/YYYY (e.g., 05/01/2026)", true);
+            showToast("Invalid date format. Use dd-mm-yyyy (e.g., 01-05-2026)", true);
             return;
         }
         if (startDate > endDate) {
@@ -471,10 +471,10 @@
 
     function setEndDateToToday() {
         const today = new Date();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
+        const month = String(today.getMonth() + 1).padStart(2, '0');
         const year = today.getFullYear();
-        document.getElementById("monthEndDate").value = `${month}/${day}/${year}`;
+        document.getElementById("monthEndDate").value = `${day}-${month}-${year}`;
         showToast("End date set to today");
     }
 
