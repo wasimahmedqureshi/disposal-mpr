@@ -191,7 +191,7 @@
         </div>
     </div>
 
-    <!-- Month-wise Disposal MPR with Date Range (dd-mm-yyyy inputs) -->
+    <!-- Month-wise Disposal MPR with Date Range (dd-mm-yyyy) -->
     <div class="card">
         <h3><i class="fas fa-calendar-alt"></i> Month-wise Disposal MPR (Age at Disposal)</h3>
         <div class="date-range">
@@ -214,7 +214,7 @@
                         <th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th>
                     </tr>
                 </thead>
-                <tbody id="monthMprBody"><tr><td colspan="9">Enter dates in dd-mm-yyyy format and click Generate.→</tbody>
+                <tbody id="monthMprBody"><td><td colspan="9">Enter dates in dd-mm-yyyy format and click Generate.→</tbody>
             </table>
         </div>
     </div>
@@ -280,33 +280,32 @@
 
     let disposals = [];
 
-    // Parse date from dd-mm-yyyy or yyyy-mm-dd to Date object
-    function parseDateFromString(dateStr) {
+    // ========== SIMPLE, ROBUST DATE PARSER ==========
+    function parseDDMMYYYY(dateStr) {
         if (!dateStr) return null;
-        let s = dateStr.trim();
-        // try dd-mm-yyyy
-        let parts = s.split('-');
-        if (parts.length === 3) {
-            let day = parseInt(parts[0], 10);
-            let month = parseInt(parts[1], 10);
-            let year = parseInt(parts[2], 10);
-            if (!isNaN(day) && !isNaN(month) && !isNaN(year) && day>=1 && day<=31 && month>=1 && month<=12) {
-                return new Date(year, month-1, day);
+        let str = dateStr.trim();
+        // Expected format: dd-mm-yyyy
+        let parts = str.split('-');
+        if (parts.length !== 3) {
+            // try reverse (yyyy-mm-dd)
+            parts = str.split('-');
+            if (parts.length === 3 && parts[0].length === 4) {
+                let year = parseInt(parts[0], 10);
+                let month = parseInt(parts[1], 10);
+                let day = parseInt(parts[2], 10);
+                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                    return new Date(year, month-1, day);
+                }
             }
+            return null;
         }
-        // try yyyy-mm-dd
-        parts = s.split('-');
-        if (parts.length === 3 && parts[0].length === 4) {
-            let year = parseInt(parts[0], 10);
-            let month = parseInt(parts[1], 10);
-            let day = parseInt(parts[2], 10);
-            if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-                return new Date(year, month-1, day);
-            }
-        }
-        // fallback
-        let d = new Date(s);
-        return isNaN(d.getTime()) ? null : d;
+        let day = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10);
+        let year = parseInt(parts[2], 10);
+        if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+        // validate day/month ranges
+        if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+        return new Date(year, month-1, day);
     }
 
     function parseDateAny(dateVal) {
@@ -387,31 +386,36 @@
         });
     }
 
-    // Month-wise MPR with date range (dd-mm-yyyy)
+    // ========== MONTH-WISE MPR (FIXED) ==========
     function renderMonthMpr() {
         let startStr = document.getElementById("monthStartDate").value.trim();
         let endStr = document.getElementById("monthEndDate").value.trim();
         if (!startStr || !endStr) {
-            showToast("Please enter both start and end dates in dd-mm-yyyy format", true);
+            showToast("Please enter both start and end dates", true);
             return;
         }
-        let startDate = parseDateFromString(startStr);
-        let endDate = parseDateFromString(endStr);
-        if (!startDate || !endDate || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            showToast("Invalid date format. Use dd-mm-yyyy (e.g., 01-05-2026)", true);
+        let startDate = parseDDMMYYYY(startStr);
+        let endDate = parseDDMMYYYY(endStr);
+        if (!startDate || !endDate) {
+            showToast("Invalid date format. Please use dd-mm-yyyy (e.g., 01-05-2026)", true);
             return;
         }
         if (startDate > endDate) {
             showToast("Start date must be before end date", true);
             return;
         }
+        console.log("Date range:", startDate, "to", endDate);
+        console.log("Total disposals in DB:", disposals.length);
+
         // Filter disposals by disposal date within range
         const filtered = disposals.filter(d => {
             let disp = new Date(d.disposalDate);
             return disp >= startDate && disp <= endDate;
         });
+        console.log("Disposals in range:", filtered.length);
+
         // Group by year-month
-        const monthMap = new Map(); // key: "YYYY-MM", value: array of disposals in that month
+        const monthMap = new Map();
         filtered.forEach(d => {
             let date = new Date(d.disposalDate);
             let key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
@@ -446,10 +450,10 @@
             window._monthBucketCases[month] = bucketCases;
         }
         if (html === "") {
-            html = '<tr><td colspan="9">No disposals in selected date range</td></tr>';
+            html = '<tr><td colspan="9">No disposals in selected date range. Please import Excel or check the date range.</td></tr>';
         }
         document.getElementById("monthMprBody").innerHTML = html;
-        // Attach handlers
+        // Attach event handlers
         document.querySelectorAll('.clickable-month-total').forEach(el => {
             el.addEventListener('click', () => {
                 const month = el.getAttribute('data-month');
@@ -613,6 +617,7 @@
     disposalsRef.on('value', (snapshot) => {
         const data = snapshot.val();
         disposals = data ? Object.values(data) : [];
+        console.log("Firebase data loaded. Total disposals:", disposals.length);
         renderOverallMPR();
         const container = document.getElementById('listContainer');
         if (container.style.display === 'block') {
@@ -641,7 +646,10 @@
     };
     document.getElementById("showAllBtn").onclick = showAllDisposals;
     document.getElementById("closeListBtn").onclick = () => document.getElementById("listContainer").style.display = "none";
-    document.getElementById("generateMonthMpr").onclick = renderMonthMpr;
+    document.getElementById("generateMonthMpr").onclick = () => {
+        console.log("Generate button clicked");
+        renderMonthMpr();
+    };
     document.getElementById("setTodayBtn").onclick = setEndDateToToday;
     document.getElementById("saveDisposalBtn").onclick = () => {
         const caseNo = document.getElementById("caseNo").value.trim();
