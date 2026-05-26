@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Disposal MPR Portal | RCCMS</title>
+    <title>Disposal MPR Portal | Fixed Age Calculation</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -156,6 +156,16 @@
         .date-range .form-group { margin-bottom: 0; }
         .date-range input { width: 150px; }
         pre { background: #f1f5f9; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 0.7rem; }
+        .debug-panel {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 12px;
+            margin-top: 16px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            overflow-x: auto;
+        }
         @media (max-width:700px) {
             .form-grid { grid-template-columns: 1fr; }
             button { padding: 6px 12px; }
@@ -178,6 +188,7 @@
         <button id="showAllBtn"><i class="fas fa-list"></i> Show All Disposals</button>
         <button id="checkFirebaseBtn" class="outline"><i class="fas fa-database"></i> Check Firebase Data</button>
         <button id="addTestDataBtn" class="outline"><i class="fas fa-flask"></i> Add Test Disposal</button>
+        <button id="showDebugBtn" class="outline"><i class="fas fa-bug"></i> Show Debug Info</button>
         <input type="file" id="excelInput" style="display:none" accept=".xlsx,.xls,.csv">
     </div>
 
@@ -242,29 +253,29 @@
         <h3><i class="fas fa-list"></i> All Disposal Records <button id="closeListBtn" style="float:right;">✕ Close</button></h3>
         <div class="list-table">
             <table id="allDisposalsTable">
-                <thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></tr></thead>
+                <thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></td></thead>
                 <tbody id="allDisposalsBody"></tbody>
             </table>
         </div>
     </div>
+
+    <!-- Debug Panel -->
+    <div id="debugPanel" class="debug-panel" style="display: none;">
+        <strong>🔍 Debug: Sample Disposal Records (max 5)</strong>
+        <div id="debugContent"></div>
+    </div>
 </div>
 
-<!-- Modal for detailed case list -->
+<!-- Modals (same as before) -->
 <div id="detailModal" class="modal">
     <div class="modal-content">
         <span class="close-modal" id="closeModalBtn">&times;</span>
         <h3 id="modalTitle">Case List</h3>
-        <div style="overflow-x: auto;">
-            <table id="modalTable">
-                <thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></td></thead>
-                <tbody id="modalBody"></tbody>
-            <table>
-        </div>
+        <div style="overflow-x: auto;"><table id="modalTable"><thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></tr></thead><tbody id="modalBody"></tbody></table></div>
         <div style="margin-top:15px;"><button id="exportModalExcel" class="primary">Export to Excel</button></div>
     </div>
 </div>
 
-<!-- Modal for Firebase raw data -->
 <div id="firebaseDataModal" class="modal">
     <div class="modal-content">
         <span class="close-modal" id="closeFirebaseModal">&times;</span>
@@ -275,11 +286,9 @@
 
 <script>
     // ==================== FIREBASE CONFIGURATION ====================
-    // ⚠️ IMPORTANT: Verify your databaseURL in Firebase Console
     const firebaseConfig = {
         apiKey: "AIzaSyAt12Y0CONs7uHH23pmJu2_6aIMBrdbNhw",
         authDomain: "disposal-data-59a73.firebaseapp.com",
-        // Update this URL if your database is in a different region (e.g., asia-southeast1)
         databaseURL: "https://disposal-data-59a73-default-rtdb.firebaseio.com",
         projectId: "disposal-data-59a73",
         storageBucket: "disposal-data-59a73.firebasestorage.app",
@@ -294,54 +303,47 @@
 
     let disposals = [];
 
-    // ========== DATE PARSERS ==========
-    function parseDDMMYYYY(dateStr) {
-        if (!dateStr) return null;
-        let str = dateStr.trim();
-        let parts = str.split('-');
-        if (parts.length !== 3) return null;
-        let day = parseInt(parts[0], 10);
-        let month = parseInt(parts[1], 10);
-        let year = parseInt(parts[2], 10);
-        if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-        if (day < 1 || day > 31 || month < 1 || month > 12) return null;
-        return new Date(year, month-1, day);
-    }
-
+    // ========== ROBUST DATE PARSER ==========
     function parseDateAny(dateVal) {
         if (!dateVal) return null;
         let s = String(dateVal).trim();
         // Excel serial number
-        if (!isNaN(s) && s.indexOf('-') === -1 && s.indexOf('/') === -1) {
+        if (!isNaN(s) && s.indexOf('-') === -1 && s.indexOf('/') === -1 && s.indexOf('.') === -1) {
             let n = parseFloat(s);
             if (n > 1 && n < 60000) {
                 let d = new Date((n - 25569) * 86400000);
                 if (!isNaN(d.getTime())) return d.toISOString().slice(0,10);
             }
         }
-        // dd-mm-yyyy or dd/mm/yyyy
+        // Try dd-mm-yyyy or dd/mm/yyyy
         let parts = s.split(/[-/]/);
         if (parts.length === 3) {
             let d, m, y;
-            if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
-            else { d = parts[0]; m = parts[1]; y = parts[2]; }
+            if (parts[0].length === 4) {
+                y = parts[0]; m = parts[1]; d = parts[2];
+            } else {
+                d = parts[0]; m = parts[1]; y = parts[2];
+            }
             if (y.length === 2) y = '20' + y;
             let iso = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
             if (iso.match(/^\d{4}-\d{2}-\d{2}$/)) return iso;
         }
-        // fallback
+        // Try yyyy-mm-dd (ISO)
         let t = new Date(s);
         if (!isNaN(t.getTime())) return t.toISOString().slice(0,10);
         return null;
     }
 
+    // Calculate age in years (exact based on dates)
     function getAgeYears(instDate, disposalDate) {
         let inst = new Date(instDate);
         let disp = new Date(disposalDate);
         if (isNaN(inst) || isNaN(disp)) return 0;
         let years = disp.getFullYear() - inst.getFullYear();
         let monthDiff = disp.getMonth() - inst.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && disp.getDate() < inst.getDate())) years--;
+        if (monthDiff < 0 || (monthDiff === 0 && disp.getDate() < inst.getDate())) {
+            years--;
+        }
         return Math.max(0, years);
     }
 
@@ -363,6 +365,7 @@
             let bucket = getBucket(age);
             buckets[bucket]++;
             bucketCases[bucket].push(d);
+            console.log(`Case ${d.caseNo}: Inst=${d.institutionDate}, Disp=${d.disposalDate}, Age=${age} years → ${bucket}`);
         });
         return { total, buckets, bucketCases };
     }
@@ -387,9 +390,10 @@
                 showCaseList(`${bucket} (${cases.length} cases)`, cases);
             });
         });
+        updateDebugPanel();
     }
 
-    // Month-wise MPR
+    // Month-wise MPR (unchanged but uses same helpers)
     function renderMonthMpr() {
         let startStr = document.getElementById("monthStartDate").value.trim();
         let endStr = document.getElementById("monthEndDate").value.trim();
@@ -437,9 +441,12 @@
             if (!window._monthBucketCases) window._monthBucketCases = {};
             window._monthBucketCases[month] = bucketCases;
         }
-        if (html === "") html = '<tr><td colspan="9">No disposals in selected date range. Try expanding the range or import data.';
+        if (html === "") html = '<tr><td colspan="9">No disposals in selected date range.';
         document.getElementById("monthMprBody").innerHTML = html;
-        // attach handlers
+        attachMonthClickHandlers(monthMap);
+    }
+
+    function attachMonthClickHandlers(monthMap) {
         document.querySelectorAll('.clickable-month-total').forEach(el => {
             el.addEventListener('click', () => {
                 const month = el.getAttribute('data-month');
@@ -458,7 +465,19 @@
         });
     }
 
-    // Helper: show case list modal
+    function parseDDMMYYYY(dateStr) {
+        if (!dateStr) return null;
+        let str = dateStr.trim();
+        let parts = str.split('-');
+        if (parts.length !== 3) return null;
+        let day = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10);
+        let year = parseInt(parts[2], 10);
+        if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+        if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+        return new Date(year, month-1, day);
+    }
+
     function showCaseList(title, caseArray) {
         const modal = document.getElementById('detailModal');
         document.getElementById('modalTitle').innerText = title;
@@ -527,7 +546,6 @@
         return true;
     }
 
-    // ========== IMPROVED IMPORT WITH DEBUG ==========
     function importExcel(file) {
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -537,7 +555,6 @@
             const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
             if (rows.length < 2) { showToast("No data rows", true); return; }
             let headerRow = rows[0].map(c => String(c || "").trim().toLowerCase());
-            console.log("Excel headers:", headerRow);
             let idxCase = headerRow.findIndex(h => h.includes("case no") || h === "caseno");
             let idxSection = headerRow.findIndex(h => h.includes("section"));
             let idxInst = headerRow.findIndex(h => h.includes("institution") || h.includes("inst date"));
@@ -550,19 +567,6 @@
                 return;
             }
             let imported = 0, errors = 0, skipped = 0;
-            let preview = [];
-            for (let i = 1; i < rows.length && i < 10; i++) {
-                const row = rows[i];
-                let caseNo = row[idxCase] ? String(row[idxCase]).trim() : "";
-                let instRaw = row[idxInst] ? String(row[idxInst]).trim() : "";
-                let dispRaw = row[idxDisposal] ? String(row[idxDisposal]).trim() : "";
-                if (caseNo && instRaw && dispRaw) {
-                    let instDate = parseDateAny(instRaw);
-                    let dispDate = parseDateAny(dispRaw);
-                    preview.push({ caseNo, instRaw, instDate, dispRaw, dispDate });
-                }
-            }
-            console.log("Preview of first few rows:", preview);
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
                 let caseNo = row[idxCase] ? String(row[idxCase]).trim() : "";
@@ -590,10 +594,6 @@
                 imported++;
             }
             showToast(`Import completed: ${imported} added, ${errors} date errors, ${skipped} empty rows`);
-            if (preview.length) {
-                let msg = "Sample: " + preview.map(p => `${p.caseNo} (Inst:${p.instRaw}->${p.instDate} Disp:${p.dispRaw}->${p.dispDate})`).join("; ");
-                showToast(msg, false);
-            }
         };
         reader.readAsArrayBuffer(file);
     }
@@ -634,6 +634,26 @@
         showToast("End date set to today");
     }
 
+    function updateDebugPanel() {
+        const debugDiv = document.getElementById('debugContent');
+        const samples = disposals.slice(0, 5).map(d => {
+            const age = getAgeYears(d.institutionDate, d.disposalDate);
+            const bucket = getBucket(age);
+            return `Case: ${d.caseNo}, Inst: ${d.institutionDate}, Disp: ${d.disposalDate}, Age: ${age.toFixed(2)} years → ${bucket}`;
+        });
+        if (samples.length) {
+            debugDiv.innerHTML = samples.join('<br>');
+        } else {
+            debugDiv.innerHTML = "No data. Import Excel or add test data.";
+        }
+    }
+
+    function showDebugPanel() {
+        const panel = document.getElementById('debugPanel');
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        if (panel.style.display === 'block') updateDebugPanel();
+    }
+
     function showToast(msg, isError = false) {
         const toast = document.createElement('div');
         toast.className = 'toast';
@@ -647,11 +667,10 @@
     disposalsRef.on('value', (snapshot) => {
         const data = snapshot.val();
         disposals = data ? Object.values(data) : [];
-        console.log("Firebase data updated. Total disposals:", disposals.length);
+        console.log("Firebase updated. Total:", disposals.length);
         renderOverallMPR();
-        // Also refresh all disposals list if open
-        const container = document.getElementById('listContainer');
-        if (container.style.display === 'block') {
+        // Also update all disposals list if open
+        if (document.getElementById('listContainer').style.display === 'block') {
             const tbody = document.getElementById('allDisposalsBody');
             tbody.innerHTML = '';
             disposals.forEach(d => {
@@ -699,6 +718,7 @@
     };
     document.getElementById("checkFirebaseBtn").onclick = checkFirebaseData;
     document.getElementById("addTestDataBtn").onclick = addTestDisposal;
+    document.getElementById("showDebugBtn").onclick = showDebugPanel;
     document.getElementById("closeModalBtn").onclick = () => document.getElementById("detailModal").style.display = "none";
     document.getElementById("closeFirebaseModal").onclick = () => document.getElementById("firebaseDataModal").style.display = "none";
     window.onclick = (event) => {
