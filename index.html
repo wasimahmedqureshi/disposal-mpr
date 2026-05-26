@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Month-wise Disposal MPR | Real-time Sync</title>
+    <title>Month-wise & Purpose-wise Disposal MPR</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -184,7 +184,7 @@
 
 <div class="container">
     <div class="header">
-        <h1><i class="fas fa-chart-line"></i> Month-wise Disposal MPR</h1>
+        <h1><i class="fas fa-chart-line"></i> Disposal MPR (Month-wise & Purpose-wise)</h1>
         <div class="sync-status">
             <span class="sync-dot" id="syncDot"></span>
             <span id="syncText">Live</span>
@@ -231,6 +231,26 @@
                 </thead>
                 <tbody id="monthMprBody"><tr><td colspan="9">Enter dates and click Generate.</tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- Case Purpose-wise Disposal Count -->
+    <div class="card">
+        <h3><i class="fas fa-tags"></i> Case Purpose-wise Disposal Count</h3>
+        <div style="overflow-x: auto;">
+            <table id="purposeTable">
+                <thead>
+                    <tr>
+                        <th>S.No.</th>
+                        <th>Case Purpose</th>
+                        <th>Number of Disposals</th>
+                    </tr>
+                </thead>
+                <tbody id="purposeBody"><td><td colspan="3">Select date range and generate Month-wise MPR to see purpose-wise counts.</tbody>
+            </table>
+        </div>
+        <div class="export-btn" style="margin-top:15px; text-align:right;">
+            <button id="exportPurposeExcel" class="primary"><i class="fas fa-file-excel"></i> Export Purpose-wise Data</button>
         </div>
     </div>
 
@@ -297,6 +317,7 @@
     const disposalsRef = database.ref('disposals');
 
     let disposals = [];
+    let currentFilteredDisposals = []; // stores disposals within selected date range
 
     // ========== DATE PARSERS ==========
     function parseDateAny(dateVal) {
@@ -354,22 +375,58 @@
         return "Less Than 1 Year";
     }
 
-    // Month-wise MPR render function
+    // Update purpose-wise table based on currentFilteredDisposals
+    function renderPurposeWise() {
+        if (currentFilteredDisposals.length === 0) {
+            document.getElementById("purposeBody").innerHTML = '<tr><td colspan="3">No disposals in selected date range.量';
+            return;
+        }
+        const purposeMap = new Map(); // key: purpose, value: array of cases
+        currentFilteredDisposals.forEach(d => {
+            let purpose = d.casePurpose && d.casePurpose.trim() !== "" ? d.casePurpose.trim() : "Not Specified";
+            if (!purposeMap.has(purpose)) purposeMap.set(purpose, []);
+            purposeMap.get(purpose).push(d);
+        });
+        // Sort by count descending
+        const sorted = Array.from(purposeMap.entries()).sort((a,b) => b[1].length - a[1].length);
+        let html = "";
+        let sno = 1;
+        for (let [purpose, cases] of sorted) {
+            html += `<tr>
+                <td>${sno++}</td>
+                <td>${purpose}${cases.length}
+                <td class="clickable-purpose" data-purpose="${purpose.replace(/"/g, '&quot;')}">${cases.length}
+            </tr>`;
+        }
+        document.getElementById("purposeBody").innerHTML = html;
+        // attach click handlers
+        document.querySelectorAll('.clickable-purpose').forEach(el => {
+            el.addEventListener('click', () => {
+                const purpose = el.getAttribute('data-purpose');
+                const cases = purposeMap.get(purpose);
+                if (cases && cases.length) showCaseList(`Case Purpose: ${purpose} (${cases.length} cases)`, cases);
+                else showToast("No cases", true);
+            });
+        });
+    }
+
+    // Month-wise MPR render (also stores filtered disposals and updates purpose-wise)
     function renderMonthMpr() {
         let startStr = document.getElementById("monthStartDate").value.trim();
         let endStr = document.getElementById("monthEndDate").value.trim();
-        if (!startStr || !endStr) return; // not yet set, skip
+        if (!startStr || !endStr) return;
         let startDate = parseDDMMYYYY(startStr);
         let endDate = parseDDMMYYYY(endStr);
         if (!startDate || !endDate || startDate > endDate) return;
 
-        const filtered = disposals.filter(d => {
+        currentFilteredDisposals = disposals.filter(d => {
             let disp = new Date(d.disposalDate);
             return disp >= startDate && disp <= endDate;
         });
 
+        // Group by year-month for the month-wise table
         const monthMap = new Map();
-        filtered.forEach(d => {
+        currentFilteredDisposals.forEach(d => {
             let date = new Date(d.disposalDate);
             let key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
             if (!monthMap.has(key)) monthMap.set(key, []);
@@ -392,29 +449,28 @@
                 bucketCases[bucket].push(d);
             });
 
-            html += `<tr>`;
-            html += `<td>${sno++}</td>`;
-            html += `<td>${officeName}</td>`;
-            html += `<td>${month}</td>`;
-            html += `<td class="clickable-total" data-month="${month}">${total}</td>`;
-            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}</td>`;
-            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}</td>`;
-            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}</td>`;
-            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}</td>`;
-            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}</td>`;
-            html += `</tr>`;
-
+            html += `<tr>
+                <td>${sno++}${officeName}${month}
+                <td class="clickable-total" data-month="${month}">${total}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}
+            </tr>`;
             if (!window._monthBucketCases) window._monthBucketCases = {};
             window._monthBucketCases[month] = bucketCases;
         }
         if (html === "") {
-            html = '<tr><td colspan="9">No disposals in selected date range. Try expanding the range or import data.</td></tr>';
+            html = '<tr><td colspan="9">No disposals in selected date range. Try expanding the range or import data.';
         }
         document.getElementById("monthMprBody").innerHTML = html;
-        attachClickHandlers(monthMap);
+        attachMonthClickHandlers(monthMap);
+        // Render purpose-wise table
+        renderPurposeWise();
     }
 
-    function attachClickHandlers(monthMap) {
+    function attachMonthClickHandlers(monthMap) {
         document.querySelectorAll('.clickable-total').forEach(el => {
             el.addEventListener('click', () => {
                 const month = el.getAttribute('data-month');
@@ -460,6 +516,29 @@
         };
     }
 
+    function exportPurposeToExcel() {
+        if (currentFilteredDisposals.length === 0) {
+            showToast("No data to export", true);
+            return;
+        }
+        const purposeMap = new Map();
+        currentFilteredDisposals.forEach(d => {
+            let purpose = d.casePurpose && d.casePurpose.trim() !== "" ? d.casePurpose.trim() : "Not Specified";
+            if (!purposeMap.has(purpose)) purposeMap.set(purpose, []);
+            purposeMap.get(purpose).push(d);
+        });
+        const rows = [['S.No.', 'Case Purpose', 'Number of Disposals']];
+        let sno = 1;
+        for (let [purpose, cases] of purposeMap.entries()) {
+            rows.push([sno++, purpose, cases.length]);
+        }
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Purpose_Wise_Disposals');
+        XLSX.writeFile(wb, `Purpose_Wise_Disposals_${new Date().toISOString().slice(0,10)}.xlsx`);
+        showToast("Exported to Excel");
+    }
+
     function showAllDisposals() {
         const container = document.getElementById('listContainer');
         const tbody = document.getElementById('allDisposalsBody');
@@ -497,11 +576,7 @@
             disposalDate: disposalDate
         };
         disposalsRef.child(newId).set(newDisposal)
-            .then(() => {
-                showToast("Disposal added successfully");
-                // After adding, auto-refresh month-wise MPR if date range is valid
-                setTimeout(() => renderMonthMpr(), 500);
-            })
+            .then(() => showToast("Disposal added successfully"))
             .catch(err => showToast("Error: " + err.message, true));
         return true;
     }
@@ -554,8 +629,6 @@
                 imported++;
             }
             showToast(`Import completed: ${imported} added, ${errors} date errors, ${skipped} empty rows`);
-            // Auto-refresh month-wise MPR after import
-            setTimeout(() => renderMonthMpr(), 500);
         };
         reader.readAsArrayBuffer(file);
     }
@@ -565,17 +638,14 @@
             caseNo: "TEST/001",
             section: "212",
             institutionDate: "2026-01-01",
-            casePurpose: "Test Case",
+            casePurpose: "Test Purpose",
             appellantName: "Test Appellant",
             respondentName: "Test Respondent",
             disposalDate: new Date().toISOString().slice(0,10)
         };
         const newId = Date.now().toString();
         disposalsRef.child(newId).set(testCase)
-            .then(() => {
-                showToast("Test disposal added. Report will auto-refresh.");
-                setTimeout(() => renderMonthMpr(), 500);
-            })
+            .then(() => showToast("Test disposal added. Report will auto-refresh."))
             .catch(err => showToast("Error: " + err.message, true));
     }
 
@@ -614,7 +684,6 @@
         const data = snapshot.val();
         disposals = data ? Object.values(data) : [];
         console.log("Firebase updated. Total disposals:", disposals.length);
-        // Update sync indicator
         document.getElementById('syncDot').style.backgroundColor = '#22c55e';
         document.getElementById('syncText').innerText = 'Live';
         // Update "Show All" list if open
@@ -673,6 +742,7 @@
     document.getElementById("addTestDataBtn").onclick = addTestDisposal;
     document.getElementById("closeModalBtn").onclick = () => document.getElementById("detailModal").style.display = "none";
     document.getElementById("closeFirebaseModal").onclick = () => document.getElementById("firebaseDataModal").style.display = "none";
+    document.getElementById("exportPurposeExcel").onclick = exportPurposeToExcel;
     window.onclick = (event) => {
         if (event.target === document.getElementById("detailModal")) document.getElementById("detailModal").style.display = "none";
         if (event.target === document.getElementById("firebaseDataModal")) document.getElementById("firebaseDataModal").style.display = "none";
