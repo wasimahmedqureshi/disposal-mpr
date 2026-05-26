@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Month-wise Disposal MPR | RCCMS</title>
+    <title>Month-wise Disposal MPR | Real-time Sync</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -33,6 +33,22 @@
         }
         .header h1 { font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, #1e4a76, #2c5282); -webkit-background-clip: text; background-clip: text; color: transparent; }
         .badge { background: #f1f5f9; padding: 6px 16px; border-radius: 40px; font-size: 0.8rem; }
+        .sync-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #f1f5f9;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+        }
+        .sync-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #22c55e;
+            box-shadow: 0 0 4px #22c55e;
+        }
         .toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -169,7 +185,10 @@
 <div class="container">
     <div class="header">
         <h1><i class="fas fa-chart-line"></i> Month-wise Disposal MPR</h1>
-        <div class="badge"><i class="fas fa-database"></i> Real-time Firebase</div>
+        <div class="sync-status">
+            <span class="sync-dot" id="syncDot"></span>
+            <span id="syncText">Live</span>
+        </div>
     </div>
 
     <div class="toolbar">
@@ -242,22 +261,16 @@
     </div>
 </div>
 
-<!-- Modal for detailed case list -->
+<!-- Modals -->
 <div id="detailModal" class="modal">
     <div class="modal-content">
         <span class="close-modal" id="closeModalBtn">&times;</span>
         <h3 id="modalTitle">Case List</h3>
-        <div style="overflow-x: auto;">
-            <table id="modalTable">
-                <thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></td></thead>
-                <tbody id="modalBody"></tbody>
-            </table>
-        </div>
+        <div style="overflow-x: auto;"><table id="modalTable"><thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></tr></thead><tbody id="modalBody"></tbody></table></div>
         <div style="margin-top:15px;"><button id="exportModalExcel" class="primary">Export to Excel</button></div>
     </div>
 </div>
 
-<!-- Modal for Firebase raw data -->
 <div id="firebaseDataModal" class="modal">
     <div class="modal-content">
         <span class="close-modal" id="closeFirebaseModal">&times;</span>
@@ -299,11 +312,8 @@
         let parts = s.split(/[-/]/);
         if (parts.length === 3) {
             let d, m, y;
-            if (parts[0].length === 4) {
-                y = parts[0]; m = parts[1]; d = parts[2];
-            } else {
-                d = parts[0]; m = parts[1]; y = parts[2];
-            }
+            if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; }
+            else { d = parts[0]; m = parts[1]; y = parts[2]; }
             if (y.length === 2) y = '20' + y;
             let iso = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
             if (iso.match(/^\d{4}-\d{2}-\d{2}$/)) return iso;
@@ -332,9 +342,7 @@
         if (isNaN(inst) || isNaN(disp)) return 0;
         let years = disp.getFullYear() - inst.getFullYear();
         let monthDiff = disp.getMonth() - inst.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && disp.getDate() < inst.getDate())) {
-            years--;
-        }
+        if (monthDiff < 0 || (monthDiff === 0 && disp.getDate() < inst.getDate())) years--;
         return Math.max(0, years);
     }
 
@@ -346,24 +354,14 @@
         return "Less Than 1 Year";
     }
 
-    // Month-wise MPR
+    // Month-wise MPR render function
     function renderMonthMpr() {
         let startStr = document.getElementById("monthStartDate").value.trim();
         let endStr = document.getElementById("monthEndDate").value.trim();
-        if (!startStr || !endStr) {
-            showToast("Enter both start and end dates", true);
-            return;
-        }
+        if (!startStr || !endStr) return; // not yet set, skip
         let startDate = parseDDMMYYYY(startStr);
         let endDate = parseDDMMYYYY(endStr);
-        if (!startDate || !endDate) {
-            showToast("Invalid date format. Use dd-mm-yyyy (e.g., 01-05-2026)", true);
-            return;
-        }
-        if (startDate > endDate) {
-            showToast("Start date must be before end date", true);
-            return;
-        }
+        if (!startDate || !endDate || startDate > endDate) return;
 
         const filtered = disposals.filter(d => {
             let disp = new Date(d.disposalDate);
@@ -394,7 +392,6 @@
                 bucketCases[bucket].push(d);
             });
 
-            // Build row with proper separate cells
             html += `<tr>`;
             html += `<td>${sno++}</td>`;
             html += `<td>${officeName}</td>`;
@@ -414,8 +411,10 @@
             html = '<tr><td colspan="9">No disposals in selected date range. Try expanding the range or import data.</td></tr>';
         }
         document.getElementById("monthMprBody").innerHTML = html;
+        attachClickHandlers(monthMap);
+    }
 
-        // attach click handlers
+    function attachClickHandlers(monthMap) {
         document.querySelectorAll('.clickable-total').forEach(el => {
             el.addEventListener('click', () => {
                 const month = el.getAttribute('data-month');
@@ -498,7 +497,11 @@
             disposalDate: disposalDate
         };
         disposalsRef.child(newId).set(newDisposal)
-            .then(() => showToast("Disposal added successfully"))
+            .then(() => {
+                showToast("Disposal added successfully");
+                // After adding, auto-refresh month-wise MPR if date range is valid
+                setTimeout(() => renderMonthMpr(), 500);
+            })
             .catch(err => showToast("Error: " + err.message, true));
         return true;
     }
@@ -551,6 +554,8 @@
                 imported++;
             }
             showToast(`Import completed: ${imported} added, ${errors} date errors, ${skipped} empty rows`);
+            // Auto-refresh month-wise MPR after import
+            setTimeout(() => renderMonthMpr(), 500);
         };
         reader.readAsArrayBuffer(file);
     }
@@ -563,11 +568,14 @@
             casePurpose: "Test Case",
             appellantName: "Test Appellant",
             respondentName: "Test Respondent",
-            disposalDate: "2026-05-26"
+            disposalDate: new Date().toISOString().slice(0,10)
         };
         const newId = Date.now().toString();
         disposalsRef.child(newId).set(testCase)
-            .then(() => showToast("Test disposal added. Generate month-wise MPR to see."))
+            .then(() => {
+                showToast("Test disposal added. Report will auto-refresh.");
+                setTimeout(() => renderMonthMpr(), 500);
+            })
             .catch(err => showToast("Error: " + err.message, true));
     }
 
@@ -589,6 +597,7 @@
         const year = today.getFullYear();
         document.getElementById("monthEndDate").value = `${day}-${month}-${year}`;
         showToast("End date set to today");
+        renderMonthMpr();
     }
 
     function showToast(msg, isError = false) {
@@ -605,6 +614,10 @@
         const data = snapshot.val();
         disposals = data ? Object.values(data) : [];
         console.log("Firebase updated. Total disposals:", disposals.length);
+        // Update sync indicator
+        document.getElementById('syncDot').style.backgroundColor = '#22c55e';
+        document.getElementById('syncText').innerText = 'Live';
+        // Update "Show All" list if open
         if (document.getElementById('listContainer').style.display === 'block') {
             const tbody = document.getElementById('allDisposalsBody');
             tbody.innerHTML = '';
@@ -619,7 +632,13 @@
                 row.insertCell(6).innerText = d.disposalDate;
             });
         }
-        showToast("Data updated from Firebase");
+        // Auto-refresh month-wise MPR if date range is valid
+        renderMonthMpr();
+    }, (error) => {
+        console.error(error);
+        document.getElementById('syncDot').style.backgroundColor = '#ef4444';
+        document.getElementById('syncText').innerText = 'Offline';
+        showToast("Firebase connection lost", true);
     });
 
     // Event listeners
