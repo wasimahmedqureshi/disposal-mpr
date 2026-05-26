@@ -167,9 +167,14 @@
 <div class="container">
     <div class="header">
         <h1><i class="fas fa-chart-line"></i> Disposal MPR (Month-wise & Purpose-wise)</h1>
-        <div class="sync-status">
-            <span class="sync-dot" id="syncDot"></span>
-            <span id="syncText">Live</span>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <a href="https://wasimahmedqureshi.github.io/rccms-portal/" target="_blank" class="primary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; background: #1e4a76; border-color: #1e4a76; color: white; padding: 8px 18px; border-radius: 40px; font-weight: 500; font-size: 0.85rem;">
+                <i class="fas fa-external-link-alt"></i> 🔗 Go to Main RCCMS Portal
+            </a>
+            <div class="sync-status">
+                <span class="sync-dot" id="syncDot"></span>
+                <span id="syncText">Live</span>
+            </div>
         </div>
     </div>
 
@@ -202,7 +207,7 @@
                     <tr><th>S.No.</th><th>Office Name</th><th>Year-Month</th><th>Total Disposal</th>
                     <th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th></tr>
                 </thead>
-                <tbody id="monthMprBody"><tr><td colspan="9">Enter dates and click Generate.</tbody>
+                <tbody id="monthMprBody"><td><td colspan="9">Enter dates and click Generate.</tbody>
             </table>
         </div>
     </div>
@@ -417,7 +422,7 @@
                 <td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}
                 <td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}
                 <td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}
-            </table>`;
+            </td>`;
             if (!window._monthBucketCases) window._monthBucketCases = {};
             window._monthBucketCases[month] = bucketCases;
         }
