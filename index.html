@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Disposal MPR | Month-wise Report</title>
+    <title>Month-wise Disposal MPR | RCCMS</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -156,16 +156,6 @@
         .date-range .form-group { margin-bottom: 0; }
         .date-range input { width: 150px; }
         pre { background: #f1f5f9; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 0.7rem; }
-        .debug-panel {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            padding: 12px;
-            margin-top: 16px;
-            font-family: monospace;
-            font-size: 0.7rem;
-            overflow-x: auto;
-        }
         @media (max-width:700px) {
             .form-grid { grid-template-columns: 1fr; }
             button { padding: 6px 12px; }
@@ -190,7 +180,7 @@
         <input type="file" id="excelInput" style="display:none" accept=".xlsx,.xls,.csv">
     </div>
 
-    <!-- Month-wise Disposal MPR with Date Range (dd-mm-yyyy) -->
+    <!-- Month-wise Disposal MPR -->
     <div class="card">
         <h3><i class="fas fa-calendar-alt"></i> Month-wise Disposal MPR (Age at Disposal)</h3>
         <div class="date-range">
@@ -295,11 +285,10 @@
 
     let disposals = [];
 
-    // ========== ROBUST DATE PARSER ==========
+    // ========== DATE PARSERS ==========
     function parseDateAny(dateVal) {
         if (!dateVal) return null;
         let s = String(dateVal).trim();
-        // Excel serial number
         if (!isNaN(s) && s.indexOf('-') === -1 && s.indexOf('/') === -1 && s.indexOf('.') === -1) {
             let n = parseFloat(s);
             if (n > 1 && n < 60000) {
@@ -307,7 +296,6 @@
                 if (!isNaN(d.getTime())) return d.toISOString().slice(0,10);
             }
         }
-        // Try dd-mm-yyyy or dd/mm/yyyy
         let parts = s.split(/[-/]/);
         if (parts.length === 3) {
             let d, m, y;
@@ -320,7 +308,6 @@
             let iso = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
             if (iso.match(/^\d{4}-\d{2}-\d{2}$/)) return iso;
         }
-        // Try yyyy-mm-dd (ISO)
         let t = new Date(s);
         if (!isNaN(t.getTime())) return t.toISOString().slice(0,10);
         return null;
@@ -339,7 +326,6 @@
         return new Date(year, month-1, day);
     }
 
-    // Calculate age in years (exact)
     function getAgeYears(instDate, disposalDate) {
         let inst = new Date(instDate);
         let disp = new Date(disposalDate);
@@ -360,7 +346,7 @@
         return "Less Than 1 Year";
     }
 
-    // Month-wise MPR with date range
+    // Month-wise MPR
     function renderMonthMpr() {
         let startStr = document.getElementById("monthStartDate").value.trim();
         let endStr = document.getElementById("monthEndDate").value.trim();
@@ -379,14 +365,12 @@
             return;
         }
 
-        // Filter disposals by disposal date within range
         const filtered = disposals.filter(d => {
             let disp = new Date(d.disposalDate);
             return disp >= startDate && disp <= endDate;
         });
 
-        // Group by year-month
-        const monthMap = new Map(); // key: "YYYY-MM", value: array of disposals
+        const monthMap = new Map();
         filtered.forEach(d => {
             let date = new Date(d.disposalDate);
             let key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
@@ -409,34 +393,37 @@
                 bucketCounts[bucket]++;
                 bucketCases[bucket].push(d);
             });
-            html += `<tr>
-                <td>${sno++}${officeName}${month}
-                <td class="clickable-total" data-month="${month}">${total}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}
-            </tr>`;
-            // Store bucket cases for click handlers
+
+            // Build row with proper separate cells
+            html += `<tr>`;
+            html += `<td>${sno++}</td>`;
+            html += `<td>${officeName}</td>`;
+            html += `<td>${month}</td>`;
+            html += `<td class="clickable-total" data-month="${month}">${total}</td>`;
+            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}</td>`;
+            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}</td>`;
+            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}</td>`;
+            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}</td>`;
+            html += `<td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}</td>`;
+            html += `</tr>`;
+
             if (!window._monthBucketCases) window._monthBucketCases = {};
             window._monthBucketCases[month] = bucketCases;
         }
-        if (html === "") html = '<tr><td colspan="9">No disposals in selected date range. Try expanding the range or import data.';
+        if (html === "") {
+            html = '<tr><td colspan="9">No disposals in selected date range. Try expanding the range or import data.</td></tr>';
+        }
         document.getElementById("monthMprBody").innerHTML = html;
-        attachClickHandlers(monthMap);
-    }
 
-    function attachClickHandlers(monthMap) {
-        // Total disposal clicks
+        // attach click handlers
         document.querySelectorAll('.clickable-total').forEach(el => {
             el.addEventListener('click', () => {
                 const month = el.getAttribute('data-month');
                 const cases = monthMap.get(month);
                 if (cases && cases.length) showCaseList(`All disposals in ${month} (${cases.length} cases)`, cases);
+                else showToast("No cases", true);
             });
         });
-        // Bucket clicks
         document.querySelectorAll('.clickable-bucket').forEach(el => {
             el.addEventListener('click', () => {
                 const month = el.getAttribute('data-month');
@@ -618,8 +605,6 @@
         const data = snapshot.val();
         disposals = data ? Object.values(data) : [];
         console.log("Firebase updated. Total disposals:", disposals.length);
-        // We do NOT auto-render month MPR because it depends on date range.
-        // But we can update the "Show All" list if open.
         if (document.getElementById('listContainer').style.display === 'block') {
             const tbody = document.getElementById('allDisposalsBody');
             tbody.innerHTML = '';
