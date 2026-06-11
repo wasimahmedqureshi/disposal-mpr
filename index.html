@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Disposal MPR | Month-wise & Purpose-wise</title>
+    <title>Disposal MPR | Month-wise & Purpose-wise | Duplicate Protected</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -160,6 +160,7 @@
             .date-range { flex-direction: column; align-items: stretch; }
             .date-range input { width: 100%; }
         }
+        .import-stats { font-size: 0.75rem; margin-left: 12px; color: #2d6a4f; background: #e9f5ef; padding: 4px 12px; border-radius: 40px; }
     </style>
 </head>
 <body>
@@ -184,6 +185,7 @@
         <button id="checkFirebaseBtn" class="outline"><i class="fas fa-database"></i> Check Firebase Data</button>
         <button id="addTestDataBtn" class="outline"><i class="fas fa-flask"></i> Add Test Disposal</button>
         <input type="file" id="excelInput" style="display:none" accept=".xlsx,.xls,.csv">
+        <div id="importStatsMsg" class="import-stats" style="display: none;"></div>
     </div>
 
     <!-- Month-wise Disposal MPR -->
@@ -207,7 +209,8 @@
                     <tr><th>S.No.</th><th>Office Name</th><th>Year-Month</th><th>Total Disposal</th>
                     <th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th></tr>
                 </thead>
-                <tbody id="monthMprBody"><td><td colspan="9">Enter dates and click Generate.</tbody>
+                <tbody id="monthMprBody"><tr><td colspan="9">Enter dates and click Generate.</td></tr>
+                </tbody>
             </table>
         </div>
     </div>
@@ -217,10 +220,9 @@
         <h3><i class="fas fa-tags"></i> Case Purpose-wise Disposal Count</h3>
         <div style="overflow-x: auto;">
             <table id="purposeTable">
-                <thead>
-                    <tr><th>S.No.</th><th>Case Purpose</th><th>Number of Disposals</th></tr>
-                </thead>
-                <tbody id="purposeBody"><tr><td colspan="3">Select date range and generate Month-wise MPR to see purpose-wise counts.</tbody>
+                <thead><tr><th>S.No.</th><th>Case Purpose</th><th>Number of Disposals</th></tr></thead>
+                <tbody id="purposeBody"><tr><td colspan="3">Select date range and generate Month-wise MPR to see purpose-wise counts.</td></tr>
+                </tbody>
             </table>
         </div>
         <div class="export-btn" style="margin-top:15px; text-align:right;">
@@ -293,6 +295,17 @@
     let disposals = [];
     let currentFilteredDisposals = [];
 
+    // Helper: generate unique composite key for duplicate detection
+    function getDisposalUniqueKey(disposal) {
+        return `${disposal.caseNo?.trim() || ''}|${disposal.institutionDate || ''}|${disposal.disposalDate || ''}`.toLowerCase();
+    }
+
+    // Check if duplicate exists in current disposals (sync snapshot)
+    function isDuplicateExists(newDisposal, existingDisposalsSet) {
+        const key = getDisposalUniqueKey(newDisposal);
+        return existingDisposalsSet.has(key);
+    }
+
     // ========== DATE PARSERS ==========
     function parseDateAny(dateVal) {
         if (!dateVal) return null;
@@ -344,11 +357,10 @@
         return "Less Than 1 Year";
     }
 
-    // Purpose-wise table
     function renderPurposeWise() {
         const tbody = document.getElementById('purposeBody');
         if (!currentFilteredDisposals.length) {
-            tbody.innerHTML = '<tr><td colspan="3">No disposals in selected date range.量';
+            tbody.innerHTML = '<tr><td colspan="3">No disposals in selected date range.</td></tr>';
             return;
         }
         const purposeMap = new Map();
@@ -362,8 +374,9 @@
         let sno = 1;
         for (let [purpose, cases] of sorted) {
             html += `<tr>
-                <td>${sno++}${purpose}
-                <td class="clickable-purpose" data-purpose="${escapeHtml(purpose)}">${cases.length}
+                <td>${sno++}</td>
+                <td>${escapeHtml(purpose)}</td>
+                <td class="clickable-purpose" data-purpose="${escapeHtml(purpose)}">${cases.length}</td>
             </tr>`;
         }
         tbody.innerHTML = html;
@@ -377,7 +390,6 @@
         });
     }
 
-    // Month-wise MPR (also updates filtered disposals and purpose-wise)
     function renderMonthMpr() {
         let startStr = document.getElementById("monthStartDate").value.trim();
         let endStr = document.getElementById("monthEndDate").value.trim();
@@ -403,6 +415,7 @@
         const officeName = "Assistant Collector (Fastrack), Niwai";
         let html = "";
         let sno = 1;
+        const bucketCasesMap = {};
         for (let month of sortedMonths) {
             const casesInMonth = monthMap.get(month);
             const total = casesInMonth.length;
@@ -415,19 +428,21 @@
                 bucketCases[bucket].push(d);
             });
             html += `<tr>
-                <td>${sno++}${officeName}${month}
-                <td class="clickable-total" data-month="${month}">${total}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}
-                <td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}
-            </td>`;
-            if (!window._monthBucketCases) window._monthBucketCases = {};
-            window._monthBucketCases[month] = bucketCases;
+                <td>${sno++}</td>
+                <td>${officeName}</td>
+                <td>${month}</td>
+                <td class="clickable-total" data-month="${month}">${total}</td>
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}</td>
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}</td>
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}</td>
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}</td>
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}</td>
+            </tr>`;
+            bucketCasesMap[month] = bucketCases;
         }
-        if (html === "") html = '<tr><td colspan="9">No disposals in selected date range.';
+        if (html === "") html = '<tr><td colspan="9">No disposals in selected date range.</td></tr>';
         document.getElementById("monthMprBody").innerHTML = html;
+        window._monthBucketCases = bucketCasesMap;
         attachMonthClickHandlers(monthMap);
         renderPurposeWise();
     }
@@ -527,6 +542,13 @@
             showToast("Case No, Institution Date and Disposal Date are required", true);
             return false;
         }
+        // Duplicate check before saving manual entry
+        const tempDisposal = { caseNo, institutionDate: instDate, disposalDate };
+        const existingSet = new Set(disposals.map(d => getDisposalUniqueKey(d)));
+        if (isDuplicateExists(tempDisposal, existingSet)) {
+            showToast("⚠️ Duplicate entry! Same Case No, Institution Date & Disposal Date already exists.", true);
+            return false;
+        }
         const newId = Date.now().toString();
         const newDisposal = {
             caseNo: caseNo,
@@ -543,9 +565,10 @@
         return true;
     }
 
-    function importExcel(file) {
+    // ========== FIXED IMPORT: NO DUPLICATES ==========
+    async function importExcel(file) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = async function(e) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -563,7 +586,12 @@
                 showToast("Excel must have columns: 'Case No', 'Institution Date', 'Disposal Date'", true);
                 return;
             }
-            let imported = 0, errors = 0, skipped = 0;
+            
+            // Build set of existing records (unique keys) from current disposals
+            const existingKeysSet = new Set(disposals.map(d => getDisposalUniqueKey(d)));
+            let imported = 0, errors = 0, skipped = 0, duplicateSkipped = 0;
+            const addedInThisBatch = new Set(); // avoid duplicate within same file
+            
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
                 let caseNo = row[idxCase] ? String(row[idxCase]).trim() : "";
@@ -577,8 +605,8 @@
                 let purpose = idxPurpose !== -1 ? (row[idxPurpose] ? String(row[idxPurpose]).trim() : "") : "";
                 let appellant = idxApp !== -1 ? (row[idxApp] ? String(row[idxApp]).trim() : "") : "";
                 let respondent = idxResp !== -1 ? (row[idxResp] ? String(row[idxResp]).trim() : "") : "";
-                const newId = Date.now() + "_" + i;
-                const disposal = {
+                
+                const newDisposal = {
                     caseNo: caseNo,
                     section: section,
                     institutionDate: instDate,
@@ -587,15 +615,33 @@
                     respondentName: respondent,
                     disposalDate: dispDate
                 };
-                disposalsRef.child(newId).set(disposal);
+                const uniqueKey = getDisposalUniqueKey(newDisposal);
+                if (existingKeysSet.has(uniqueKey) || addedInThisBatch.has(uniqueKey)) {
+                    duplicateSkipped++;
+                    continue;
+                }
+                addedInThisBatch.add(uniqueKey);
+                const newId = Date.now() + "_" + i + "_" + Math.random().toString(36).substr(2, 5);
+                await disposalsRef.child(newId).set(newDisposal);
                 imported++;
             }
-            showToast(`Import completed: ${imported} added, ${errors} date errors, ${skipped} empty rows`);
+            const statsMsg = `✅ Imported: ${imported} new records | ⚠️ Duplicates skipped: ${duplicateSkipped} | Date errors: ${errors} | Empty rows: ${skipped}`;
+            const statsDiv = document.getElementById('importStatsMsg');
+            statsDiv.style.display = 'inline-block';
+            statsDiv.innerText = statsMsg;
+            showToast(statsMsg);
+            setTimeout(() => { statsDiv.style.display = 'none'; }, 5000);
         };
         reader.readAsArrayBuffer(file);
     }
 
     function addTestDisposal() {
+        // Avoid duplicate test entry if exists
+        const existingTest = disposals.some(d => d.caseNo === "TEST/001" && d.casePurpose === "Test Purpose");
+        if (existingTest) {
+            showToast("Test disposal already exists. Skipping duplicate.", true);
+            return;
+        }
         const testCase = {
             caseNo: "TEST/001",
             section: "212",
@@ -671,7 +717,7 @@
                 row.insertCell(6).innerText = d.disposalDate;
             });
         }
-        renderMonthMpr(); // auto-refresh
+        renderMonthMpr();
     }, (error) => {
         console.error(error);
         document.getElementById('syncDot').style.backgroundColor = '#ef4444';
