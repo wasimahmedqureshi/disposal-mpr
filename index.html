@@ -62,6 +62,7 @@
         button.primary { background: #1e4a76; border-color: #1e4a76; color: white; }
         button.primary:hover { background: #0f3a5c; transform: translateY(-2px); }
         button:hover { background: #f8fafc; transform: translateY(-1px); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         .card {
             background: white;
             border-radius: 28px;
@@ -160,7 +161,9 @@
             .date-range { flex-direction: column; align-items: stretch; }
             .date-range input { width: 100%; }
         }
-        .import-stats { font-size: 0.75rem; margin-left: 12px; color: #2d6a4f; background: #e9f5ef; padding: 4px 12px; border-radius: 40px; }
+        .import-stats { font-size: 0.75rem; margin-left: 12px; background: #e9f5ef; padding: 4px 12px; border-radius: 40px; }
+        .loading-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 0.6s linear infinite; margin-right: 6px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -209,8 +212,7 @@
                     <tr><th>S.No.</th><th>Office Name</th><th>Year-Month</th><th>Total Disposal</th>
                     <th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th></tr>
                 </thead>
-                <tbody id="monthMprBody"><tr><td colspan="9">Enter dates and click Generate.</td></tr>
-                </tbody>
+                <tbody id="monthMprBody"><tr><td colspan="9">Enter dates and click Generate.</tbody>
             </table>
         </div>
     </div>
@@ -221,8 +223,7 @@
         <div style="overflow-x: auto;">
             <table id="purposeTable">
                 <thead><tr><th>S.No.</th><th>Case Purpose</th><th>Number of Disposals</th></tr></thead>
-                <tbody id="purposeBody"><tr><td colspan="3">Select date range and generate Month-wise MPR to see purpose-wise counts.</td></tr>
-                </tbody>
+                <tbody id="purposeBody"><tr><td colspan="3">Select date range and generate Month-wise MPR to see purpose-wise counts.</tbody>
             </table>
         </div>
         <div class="export-btn" style="margin-top:15px; text-align:right;">
@@ -294,13 +295,14 @@
 
     let disposals = [];
     let currentFilteredDisposals = [];
+    let isImporting = false;  // Lock to prevent concurrent imports
 
     // Helper: generate unique composite key for duplicate detection
     function getDisposalUniqueKey(disposal) {
         return `${disposal.caseNo?.trim() || ''}|${disposal.institutionDate || ''}|${disposal.disposalDate || ''}`.toLowerCase();
     }
 
-    // Check if duplicate exists in current disposals (sync snapshot)
+    // Check if duplicate exists in current disposals set
     function isDuplicateExists(newDisposal, existingDisposalsSet) {
         const key = getDisposalUniqueKey(newDisposal);
         return existingDisposalsSet.has(key);
@@ -542,7 +544,6 @@
             showToast("Case No, Institution Date and Disposal Date are required", true);
             return false;
         }
-        // Duplicate check before saving manual entry
         const tempDisposal = { caseNo, institutionDate: instDate, disposalDate };
         const existingSet = new Set(disposals.map(d => getDisposalUniqueKey(d)));
         if (isDuplicateExists(tempDisposal, existingSet)) {
@@ -551,7 +552,7 @@
         }
         const newId = Date.now().toString();
         const newDisposal = {
-            caseNo: caseNo,
+            caseNo: caseNo.trim(),
             section: section || "",
             institutionDate: instDate,
             casePurpose: casePurpose || "",
@@ -565,15 +566,30 @@
         return true;
     }
 
-    // ========== FIXED IMPORT: NO DUPLICATES ==========
+    // ========== FIXED IMPORT: NO DUPLICATES & CONCURRENCY LOCK ==========
     async function importExcel(file) {
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            const data = new Uint8Array(e.target.result);
+        if (isImporting) {
+            showToast("Import already in progress. Please wait...", true);
+            return;
+        }
+        isImporting = true;
+        const importBtn = document.getElementById("importExcelBtn");
+        const originalBtnText = importBtn.innerHTML;
+        importBtn.innerHTML = '<span class="loading-spinner"></span> Importing...';
+        importBtn.disabled = true;
+
+        try {
+            const data = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(new Uint8Array(e.target.result));
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
             const workbook = XLSX.read(data, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
             if (rows.length < 2) { showToast("No data rows", true); return; }
+            
             let headerRow = rows[0].map(c => String(c || "").trim().toLowerCase());
             let idxCase = headerRow.findIndex(h => h.includes("case no") || h === "caseno");
             let idxSection = headerRow.findIndex(h => h.includes("section"));
@@ -587,10 +603,10 @@
                 return;
             }
             
-            // Build set of existing records (unique keys) from current disposals
+            // Build set of existing records from current disposals
             const existingKeysSet = new Set(disposals.map(d => getDisposalUniqueKey(d)));
             let imported = 0, errors = 0, skipped = 0, duplicateSkipped = 0;
-            const addedInThisBatch = new Set(); // avoid duplicate within same file
+            const addedInThisBatch = new Set();
             
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
@@ -621,7 +637,7 @@
                     continue;
                 }
                 addedInThisBatch.add(uniqueKey);
-                const newId = Date.now() + "_" + i + "_" + Math.random().toString(36).substr(2, 5);
+                const newId = Date.now() + "_" + i + "_" + Math.random().toString(36).substr(2, 6);
                 await disposalsRef.child(newId).set(newDisposal);
                 imported++;
             }
@@ -631,12 +647,18 @@
             statsDiv.innerText = statsMsg;
             showToast(statsMsg);
             setTimeout(() => { statsDiv.style.display = 'none'; }, 5000);
-        };
-        reader.readAsArrayBuffer(file);
+        } catch (err) {
+            console.error(err);
+            showToast("Import failed: " + err.message, true);
+        } finally {
+            isImporting = false;
+            importBtn.innerHTML = originalBtnText;
+            importBtn.disabled = false;
+            document.getElementById("excelInput").value = '';
+        }
     }
 
     function addTestDisposal() {
-        // Avoid duplicate test entry if exists
         const existingTest = disposals.some(d => d.caseNo === "TEST/001" && d.casePurpose === "Test Purpose");
         if (existingTest) {
             showToast("Test disposal already exists. Skipping duplicate.", true);
@@ -728,7 +750,8 @@
     // Event listeners
     document.getElementById("importExcelBtn").onclick = () => document.getElementById("excelInput").click();
     document.getElementById("excelInput").onchange = (e) => {
-        if (e.target.files.length) importExcel(e.target.files[0]);
+        if (e.target.files.length && !isImporting) importExcel(e.target.files[0]);
+        else if (isImporting) showToast("Import in progress, please wait", true);
         e.target.value = '';
     };
     document.getElementById("showAllBtn").onclick = showAllDisposals;
