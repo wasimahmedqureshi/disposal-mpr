@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Disposal MPR | Month-wise & Purpose-wise | Fully Functional</title>
+    <title>Disposal MPR | Month-wise & Purpose-wise</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -32,6 +32,7 @@
             gap: 15px;
         }
         .header h1 { font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, #1e4a76, #2c5282); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .badge { background: #f1f5f9; padding: 6px 16px; border-radius: 40px; font-size: 0.8rem; }
         .sync-status { display: inline-flex; align-items: center; gap: 8px; background: #f1f5f9; padding: 4px 12px; border-radius: 40px; font-size: 0.75rem; }
         .sync-dot { width: 10px; height: 10px; border-radius: 50%; background-color: #22c55e; box-shadow: 0 0 4px #22c55e; }
         .toolbar {
@@ -43,7 +44,6 @@
             padding: 16px 24px;
             border-radius: 28px;
             border: 1px solid #e2edf2;
-            align-items: center;
         }
         button {
             background: white;
@@ -61,11 +61,7 @@
         }
         button.primary { background: #1e4a76; border-color: #1e4a76; color: white; }
         button.primary:hover { background: #0f3a5c; transform: translateY(-2px); }
-        button.danger { background: #dc2626; border-color: #dc2626; color: white; }
-        button.danger:hover { background: #b91c1c; }
-        button.warning { background: #eab308; border-color: #eab308; color: white; }
-        button.warning:hover { background: #ca8a04; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        button:hover { background: #f8fafc; transform: translateY(-1px); }
         .card {
             background: white;
             border-radius: 28px;
@@ -84,8 +80,16 @@
             border-left: 4px solid #1e4a76;
             padding-left: 16px;
         }
-        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        th, td { padding: 12px 10px; text-align: center; border: 1px solid #e2e8f0; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        th, td {
+            padding: 12px 10px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
         th { background: #f8fafd; font-weight: 600; }
         .form-grid {
             display: grid;
@@ -95,9 +99,14 @@
         }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
         label { font-weight: 600; font-size: 0.85rem; }
-        input { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 20px; font-size: 0.9rem; }
+        input {
+            padding: 10px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
         .btn-submit { background: #1e4a76; color: white; border: none; padding: 10px 24px; border-radius: 40px; font-weight: 600; cursor: pointer; }
-        .clickable-total, .clickable-bucket, .clickable-purpose {
+        .clickable-count, .clickable-total, .clickable-bucket, .clickable-purpose {
             cursor: pointer;
             font-weight: 700;
             color: #1e4a76;
@@ -122,6 +131,7 @@
             padding: 24px;
             overflow: auto;
         }
+        .modal-content h3 { margin-bottom: 16px; }
         .close-modal { float: right; cursor: pointer; font-size: 1.2rem; }
         .toast {
             position: fixed;
@@ -139,61 +149,86 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
+        .list-table { overflow-x: auto; margin-top: 20px; }
         .date-range { display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 20px; }
+        .date-range .form-group { margin-bottom: 0; }
         .date-range input { width: 150px; }
         pre { background: #f1f5f9; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 0.7rem; }
-        .record-count { font-size: 0.75rem; background: #e2e8f0; padding: 4px 12px; border-radius: 40px; margin-left: auto; }
-        .loading-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 0.6s linear infinite; margin-right: 6px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width:700px) {
             .form-grid { grid-template-columns: 1fr; }
+            button { padding: 6px 12px; }
             .date-range { flex-direction: column; align-items: stretch; }
             .date-range input { width: 100%; }
         }
     </style>
 </head>
 <body>
+
 <div class="container">
     <div class="header">
         <h1><i class="fas fa-chart-line"></i> Disposal MPR (Month-wise & Purpose-wise)</h1>
         <div style="display: flex; gap: 15px; align-items: center;">
-            <a href="https://wasimahmedqureshi.github.io/rccms-portal/" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; background: #1e4a76; color: white; padding: 8px 18px; border-radius: 40px; font-weight: 500; font-size: 0.85rem;">
-                <i class="fas fa-external-link-alt"></i> Main RCCMS Portal
+            <a href="https://wasimahmedqureshi.github.io/rccms-portal/" target="_blank" class="primary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; background: #1e4a76; border-color: #1e4a76; color: white; padding: 8px 18px; border-radius: 40px; font-weight: 500; font-size: 0.85rem;">
+                <i class="fas fa-external-link-alt"></i> 🔗 Go to Main RCCMS Portal
             </a>
-            <div class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncText">Live</span></div>
+            <div class="sync-status">
+                <span class="sync-dot" id="syncDot"></span>
+                <span id="syncText">Live</span>
+            </div>
         </div>
     </div>
 
     <div class="toolbar">
-        <button id="importExcelBtn" class="primary"><i class="fas fa-file-excel"></i> Import Excel</button>
-        <button id="showAllBtn"><i class="fas fa-list"></i> All Records</button>
-        <button id="removeDuplicatesBtn" class="warning"><i class="fas fa-clone"></i> Remove Duplicates</button>
-        <button id="deleteAllBtn" class="danger"><i class="fas fa-trash-alt"></i> Delete All Data</button>
-        <button id="addTestDataBtn" class="outline"><i class="fas fa-flask"></i> Add Test</button>
-        <div id="recordCountBadge" class="record-count">📊 0 records</div>
+        <button id="importExcelBtn" class="primary"><i class="fas fa-file-excel"></i> Import Disposal Excel</button>
+        <button id="showAllBtn"><i class="fas fa-list"></i> Show All Disposals</button>
+        <button id="checkFirebaseBtn" class="outline"><i class="fas fa-database"></i> Check Firebase Data</button>
+        <button id="addTestDataBtn" class="outline"><i class="fas fa-flask"></i> Add Test Disposal</button>
         <input type="file" id="excelInput" style="display:none" accept=".xlsx,.xls,.csv">
     </div>
 
-    <!-- Month-wise MPR -->
+    <!-- Month-wise Disposal MPR -->
     <div class="card">
         <h3><i class="fas fa-calendar-alt"></i> Month-wise Disposal MPR (Age at Disposal)</h3>
         <div class="date-range">
-            <div class="form-group"><label>Start Date (dd-mm-yyyy)</label><input type="text" id="monthStartDate" placeholder="dd-mm-yyyy" value="01-01-2026"></div>
-            <div class="form-group"><label>End Date (dd-mm-yyyy)</label><input type="text" id="monthEndDate" placeholder="dd-mm-yyyy" value="31-05-2026"></div>
-            <button id="generateMonthMpr" class="primary"><i class="fas fa-chart-line"></i> Generate MPR</button>
-            <button id="setTodayBtn" class="outline">Set End Date Today</button>
+            <div class="form-group">
+                <label>Start Date (dd-mm-yyyy)</label>
+                <input type="text" id="monthStartDate" placeholder="dd-mm-yyyy" value="01-01-2026">
+            </div>
+            <div class="form-group">
+                <label>End Date (dd-mm-yyyy)</label>
+                <input type="text" id="monthEndDate" placeholder="dd-mm-yyyy" value="31-05-2026">
+            </div>
+            <button id="generateMonthMpr" class="primary"><i class="fas fa-chart-line"></i> Generate Month-wise MPR</button>
+            <button id="setTodayBtn" class="outline">Set End Date to Today</button>
         </div>
-        <div style="overflow-x: auto;"><table id="monthMprTable"><thead><tr><th>S.No.</th><th>Office Name</th><th>Year-Month</th><th>Total</th><th>Over 5 Yrs</th><th>Over 3 Yrs</th><th>Over 2 Yrs</th><th>Over 1 Yr</th><th>&lt; 1 Year</th></tr></thead><tbody id="monthMprBody"><tr><td colspan="9">Enter dates and click Generate.</td></tr></tbody></table></div>
+        <div style="overflow-x: auto; margin-top: 15px;">
+            <table id="monthMprTable">
+                <thead>
+                    <tr><th>S.No.</th><th>Office Name</th><th>Year-Month</th><th>Total Disposal</th>
+                    <th>Over 5 Years</th><th>Over 3 Years</th><th>Over 2 Years</th><th>Over 1 Year</th><th>Less Than 1 Year</th></tr>
+                </thead>
+                <tbody id="monthMprBody"><td><td colspan="9">Enter dates and click Generate.</tbody>
+            </table>
+        </div>
     </div>
 
-    <!-- Purpose-wise -->
+    <!-- Case Purpose-wise Disposal Count -->
     <div class="card">
         <h3><i class="fas fa-tags"></i> Case Purpose-wise Disposal Count</h3>
-        <div style="overflow-x: auto;"><table id="purposeTable"><thead><tr><th>S.No.</th><th>Case Purpose</th><th>Number of Disposals</th></tr></thead><tbody id="purposeBody"><tr><td colspan="3">Generate MPR to see purpose-wise counts.</td></tr></tbody></table></div>
-        <div style="margin-top:15px; text-align:right;"><button id="exportPurposeExcel" class="primary"><i class="fas fa-file-excel"></i> Export Purpose-wise</button></div>
+        <div style="overflow-x: auto;">
+            <table id="purposeTable">
+                <thead>
+                    <tr><th>S.No.</th><th>Case Purpose</th><th>Number of Disposals</th></tr>
+                </thead>
+                <tbody id="purposeBody"><tr><td colspan="3">Select date range and generate Month-wise MPR to see purpose-wise counts.</tbody>
+            </table>
+        </div>
+        <div class="export-btn" style="margin-top:15px; text-align:right;">
+            <button id="exportPurposeExcel" class="primary"><i class="fas fa-file-excel"></i> Export Purpose-wise Data</button>
+        </div>
     </div>
 
-    <!-- Add New Disposal -->
+    <!-- Add New Disposal Form -->
     <div class="card">
         <h3><i class="fas fa-plus-circle"></i> Add New Disposal</h3>
         <div class="form-grid">
@@ -208,19 +243,38 @@
         <div style="text-align: right;"><button id="saveDisposalBtn" class="btn-submit"><i class="fas fa-save"></i> Save Disposal</button></div>
     </div>
 
-    <!-- All Disposals List -->
+    <!-- All Disposals List (toggle) -->
     <div id="listContainer" style="display: none;" class="card">
         <h3><i class="fas fa-list"></i> All Disposal Records <button id="closeListBtn" style="float:right;">✕ Close</button></h3>
-        <div class="list-table"><table id="allDisposalsTable"><thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></tr></thead><tbody id="allDisposalsBody"></tbody></table></div>
+        <div class="list-table">
+            <table id="allDisposalsTable">
+                <thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></tr></thead>
+                <tbody id="allDisposalsBody"></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <!-- Modals -->
-<div id="detailModal" class="modal"><div class="modal-content"><span class="close-modal" id="closeModalBtn">&times;</span><h3 id="modalTitle">Case List</h3><div style="overflow-x: auto;"><table id="modalTable"><thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></tr></thead><tbody id="modalBody"></tbody></table></div><div style="margin-top:15px;"><button id="exportModalExcel" class="primary">Export to Excel</button></div></div></div>
-<div id="firebaseDataModal" class="modal"><div class="modal-content"><span class="close-modal" id="closeFirebaseModal">&times;</span><h3>Raw Firebase Data</h3><pre id="firebaseDataPreview">Loading...</pre></div></div>
+<div id="detailModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" id="closeModalBtn">&times;</span>
+        <h3 id="modalTitle">Case List</h3>
+        <div style="overflow-x: auto;"><table id="modalTable"><thead><tr><th>Case No</th><th>Section</th><th>Institution Date</th><th>Purpose</th><th>Appellant</th><th>Respondent</th><th>Disposal Date</th></tr></thead><tbody id="modalBody"></tbody></table></div>
+        <div style="margin-top:15px;"><button id="exportModalExcel" class="primary">Export to Excel</button></div>
+    </div>
+</div>
+
+<div id="firebaseDataModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" id="closeFirebaseModal">&times;</span>
+        <h3>Raw Firebase Data</h3>
+        <pre id="firebaseDataPreview">Loading...</pre>
+    </div>
+</div>
 
 <script>
-    // Firebase Config
+    // ==================== FIREBASE CONFIGURATION ====================
     const firebaseConfig = {
         apiKey: "AIzaSyAt12Y0CONs7uHH23pmJu2_6aIMBrdbNhw",
         authDomain: "disposal-data-59a73.firebaseapp.com",
@@ -228,20 +282,21 @@
         projectId: "disposal-data-59a73",
         storageBucket: "disposal-data-59a73.firebasestorage.app",
         messagingSenderId: "887615168004",
-        appId: "1:887615168004:web:e159c0b4c71b825f4c9f51"
+        appId: "1:887615168004:web:e159c0b4c71b825f4c9f51",
+        measurementId: "G-1K9MVJSR0S"
     };
+
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     const disposalsRef = database.ref('disposals');
 
     let disposals = [];
     let currentFilteredDisposals = [];
-    let isImporting = false;
 
-    function getUniqueKey(d) { return `${(d.caseNo || '').trim().toLowerCase()}|${d.institutionDate || ''}|${d.disposalDate || ''}`; }
-    function parseDateAny(val) {
-        if (!val) return null;
-        let s = String(val).trim();
+    // ========== DATE PARSERS ==========
+    function parseDateAny(dateVal) {
+        if (!dateVal) return null;
+        let s = String(dateVal).trim();
         if (!isNaN(s) && s.indexOf('-') === -1 && s.indexOf('/') === -1 && s.indexOf('.') === -1) {
             let n = parseFloat(s);
             if (n > 1 && n < 60000) return new Date((n - 25569) * 86400000).toISOString().slice(0,10);
@@ -258,22 +313,29 @@
         let t = new Date(s);
         return !isNaN(t.getTime()) ? t.toISOString().slice(0,10) : null;
     }
-    function parseDDMMYYYY(str) {
-        if (!str) return null;
-        let parts = str.trim().split('-');
+
+    function parseDDMMYYYY(dateStr) {
+        if (!dateStr) return null;
+        let parts = dateStr.trim().split('-');
         if (parts.length !== 3) return null;
-        let day = parseInt(parts[0],10), month = parseInt(parts[1],10), year = parseInt(parts[2],10);
+        let day = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10);
+        let year = parseInt(parts[2], 10);
         if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+        if (day < 1 || day > 31 || month < 1 || month > 12) return null;
         return new Date(year, month-1, day);
     }
+
     function getAgeYears(instDate, disposalDate) {
-        let inst = new Date(instDate), disp = new Date(disposalDate);
+        let inst = new Date(instDate);
+        let disp = new Date(disposalDate);
         if (isNaN(inst) || isNaN(disp)) return 0;
         let years = disp.getFullYear() - inst.getFullYear();
         let monthDiff = disp.getMonth() - inst.getMonth();
         if (monthDiff < 0 || (monthDiff === 0 && disp.getDate() < inst.getDate())) years--;
         return Math.max(0, years);
     }
+
     function getBucket(years) {
         if (years >= 5) return "Over 5 Years";
         if (years >= 3) return "Over 3 Years";
@@ -282,6 +344,40 @@
         return "Less Than 1 Year";
     }
 
+    // Purpose-wise table
+    function renderPurposeWise() {
+        const tbody = document.getElementById('purposeBody');
+        if (!currentFilteredDisposals.length) {
+            tbody.innerHTML = '<tr><td colspan="3">No disposals in selected date range.量';
+            return;
+        }
+        const purposeMap = new Map();
+        currentFilteredDisposals.forEach(d => {
+            let purpose = d.casePurpose && d.casePurpose.trim() !== "" ? d.casePurpose.trim() : "Not Specified";
+            if (!purposeMap.has(purpose)) purposeMap.set(purpose, []);
+            purposeMap.get(purpose).push(d);
+        });
+        const sorted = Array.from(purposeMap.entries()).sort((a,b) => b[1].length - a[1].length);
+        let html = "";
+        let sno = 1;
+        for (let [purpose, cases] of sorted) {
+            html += `<tr>
+                <td>${sno++}${purpose}
+                <td class="clickable-purpose" data-purpose="${escapeHtml(purpose)}">${cases.length}
+            </tr>`;
+        }
+        tbody.innerHTML = html;
+        document.querySelectorAll('.clickable-purpose').forEach(el => {
+            el.addEventListener('click', () => {
+                const purpose = el.getAttribute('data-purpose');
+                const cases = purposeMap.get(purpose);
+                if (cases && cases.length) showCaseList(`Case Purpose: ${purpose} (${cases.length} cases)`, cases);
+                else showToast("No cases", true);
+            });
+        });
+    }
+
+    // Month-wise MPR (also updates filtered disposals and purpose-wise)
     function renderMonthMpr() {
         let startStr = document.getElementById("monthStartDate").value.trim();
         let endStr = document.getElementById("monthEndDate").value.trim();
@@ -290,7 +386,11 @@
         let endDate = parseDDMMYYYY(endStr);
         if (!startDate || !endDate || startDate > endDate) return;
 
-        currentFilteredDisposals = disposals.filter(d => new Date(d.disposalDate) >= startDate && new Date(d.disposalDate) <= endDate);
+        currentFilteredDisposals = disposals.filter(d => {
+            let disp = new Date(d.disposalDate);
+            return disp >= startDate && disp <= endDate;
+        });
+
         const monthMap = new Map();
         currentFilteredDisposals.forEach(d => {
             let date = new Date(d.disposalDate);
@@ -298,48 +398,58 @@
             if (!monthMap.has(key)) monthMap.set(key, []);
             monthMap.get(key).push(d);
         });
+
         const sortedMonths = Array.from(monthMap.keys()).sort();
         const officeName = "Assistant Collector (Fastrack), Niwai";
         let html = "";
         let sno = 1;
-        const bucketCasesMap = {};
         for (let month of sortedMonths) {
             const casesInMonth = monthMap.get(month);
             const total = casesInMonth.length;
-            let bucketCounts = { "Over 5 Years":0, "Over 3 Years":0, "Over 2 Years":0, "Over 1 Year":0, "Less Than 1 Year":0 };
-            let bucketCases = { "Over 5 Years":[], "Over 3 Years":[], "Over 2 Years":[], "Over 1 Year":[], "Less Than 1 Year":[] };
+            let bucketCounts = { "Over 5 Years": 0, "Over 3 Years": 0, "Over 2 Years": 0, "Over 1 Year": 0, "Less Than 1 Year": 0 };
+            let bucketCases = { "Over 5 Years": [], "Over 3 Years": [], "Over 2 Years": [], "Over 1 Year": [], "Less Than 1 Year": [] };
             casesInMonth.forEach(d => {
                 let age = getAgeYears(d.institutionDate, d.disposalDate);
                 let bucket = getBucket(age);
                 bucketCounts[bucket]++;
                 bucketCases[bucket].push(d);
             });
-            html += `<tr><td>${sno++}</td><td>${officeName}</td><td>${month}</td><td class="clickable-total" data-month="${month}">${total}</td>
-            <td class="clickable-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}</td>
-            <td class="clickable-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}</td>
-            <td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}</td>
-            <td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}</td>
-            <td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}</td></tr>`;
-            bucketCasesMap[month] = bucketCases;
+            html += `<tr>
+                <td>${sno++}${officeName}${month}
+                <td class="clickable-total" data-month="${month}">${total}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 5 Years">${bucketCounts["Over 5 Years"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 3 Years">${bucketCounts["Over 3 Years"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 2 Years">${bucketCounts["Over 2 Years"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Over 1 Year">${bucketCounts["Over 1 Year"]}
+                <td class="clickable-bucket" data-month="${month}" data-bucket="Less Than 1 Year">${bucketCounts["Less Than 1 Year"]}
+            </td>`;
+            if (!window._monthBucketCases) window._monthBucketCases = {};
+            window._monthBucketCases[month] = bucketCases;
         }
-        if (html === "") html = '<tr><td colspan="9">No disposals in selected date range.</td></tr>';
+        if (html === "") html = '<tr><td colspan="9">No disposals in selected date range.';
         document.getElementById("monthMprBody").innerHTML = html;
-        window._monthBucketCases = bucketCasesMap;
-        document.querySelectorAll('.clickable-total').forEach(el => el.addEventListener('click', (e) => { const month = e.currentTarget.dataset.month; const cases = monthMap.get(month); if(cases?.length) showCaseList(`All disposals in ${month} (${cases.length} cases)`, cases); }));
-        document.querySelectorAll('.clickable-bucket').forEach(el => el.addEventListener('click', (e) => { const month = e.currentTarget.dataset.month, bucket = e.currentTarget.dataset.bucket; const cases = window._monthBucketCases?.[month]?.[bucket]; if(cases?.length) showCaseList(`${month} - ${bucket} (${cases.length} cases)`, cases); }));
+        attachMonthClickHandlers(monthMap);
         renderPurposeWise();
     }
 
-    function renderPurposeWise() {
-        const tbody = document.getElementById('purposeBody');
-        if (!currentFilteredDisposals.length) { tbody.innerHTML = '<tr><td colspan="3">No disposals in selected date range.</td></tr>'; return; }
-        const purposeMap = new Map();
-        currentFilteredDisposals.forEach(d => { let p = d.casePurpose?.trim() || "Not Specified"; purposeMap.set(p, (purposeMap.get(p)||0)+1); });
-        const sorted = Array.from(purposeMap.entries()).sort((a,b)=>b[1]-a[1]);
-        let html = ""; let sno=1;
-        for (let [purpose, count] of sorted) html += `<tr><td>${sno++}</td><td>${escapeHtml(purpose)}</td><td class="clickable-purpose" data-purpose="${escapeHtml(purpose)}">${count}</td></tr>`;
-        tbody.innerHTML = html;
-        document.querySelectorAll('.clickable-purpose').forEach(el => el.addEventListener('click', (e) => { const purpose = e.currentTarget.dataset.purpose; const cases = currentFilteredDisposals.filter(d => (d.casePurpose?.trim()||"Not Specified") === purpose); if(cases.length) showCaseList(`Case Purpose: ${purpose} (${cases.length} cases)`, cases); }));
+    function attachMonthClickHandlers(monthMap) {
+        document.querySelectorAll('.clickable-total').forEach(el => {
+            el.addEventListener('click', () => {
+                const month = el.getAttribute('data-month');
+                const cases = monthMap.get(month);
+                if (cases && cases.length) showCaseList(`All disposals in ${month} (${cases.length} cases)`, cases);
+                else showToast("No cases", true);
+            });
+        });
+        document.querySelectorAll('.clickable-bucket').forEach(el => {
+            el.addEventListener('click', () => {
+                const month = el.getAttribute('data-month');
+                const bucket = el.getAttribute('data-bucket');
+                const bucketCases = window._monthBucketCases?.[month]?.[bucket];
+                if (bucketCases && bucketCases.length) showCaseList(`${month} - ${bucket} (${bucketCases.length} cases)`, bucketCases);
+                else showToast("No cases in this bucket", true);
+            });
+        });
     }
 
     function showCaseList(title, caseArray) {
@@ -347,66 +457,96 @@
         document.getElementById('modalTitle').innerText = title;
         const tbody = document.getElementById('modalBody');
         tbody.innerHTML = '';
-        caseArray.forEach(c => { const row = tbody.insertRow(); row.insertCell(0).innerText = c.caseNo; row.insertCell(1).innerText = c.section || ''; row.insertCell(2).innerText = c.institutionDate; row.insertCell(3).innerText = c.casePurpose || ''; row.insertCell(4).innerText = c.appellantName || ''; row.insertCell(5).innerText = c.respondentName || ''; row.insertCell(6).innerText = c.disposalDate; });
+        caseArray.forEach(c => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = c.caseNo;
+            row.insertCell(1).innerText = c.section || '';
+            row.insertCell(2).innerText = c.institutionDate;
+            row.insertCell(3).innerText = c.casePurpose || '';
+            row.insertCell(4).innerText = c.appellantName || '';
+            row.insertCell(5).innerText = c.respondentName || '';
+            row.insertCell(6).innerText = c.disposalDate;
+        });
         modal.style.display = 'flex';
         document.getElementById('exportModalExcel').onclick = () => {
             const rows = [['Case No','Section','Institution Date','Purpose','Appellant','Respondent','Disposal Date']];
             caseArray.forEach(c => rows.push([c.caseNo, c.section||'', c.institutionDate, c.casePurpose||'', c.appellantName||'', c.respondentName||'', c.disposalDate]));
-            const ws = XLSX.utils.aoa_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Cases'); XLSX.writeFile(wb, `${title.replace(/\s/g,'_')}.xlsx`);
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Cases');
+            XLSX.writeFile(wb, `${title.replace(/\s/g,'_')}.xlsx`);
         };
     }
 
-    // ========== FIXED DELETE ALL DATA ==========
-    async function deleteAllData() {
-        if (!confirm("⚠️ DANGER: This will DELETE ALL disposal records from Firebase. This action cannot be undone. Are you absolutely sure?")) return;
-        const confirmText = prompt("Type 'DELETE ALL' to confirm permanent deletion:");
-        if (confirmText !== "DELETE ALL") { showToast("Deletion cancelled", true); return; }
-        showToast("Deleting all records...");
-        try {
-            await disposalsRef.remove();
-            showToast("✅ All records deleted successfully");
-            // UI will update via Firebase listener
-        } catch (err) { showToast("Error deleting: " + err.message, true); }
+    function exportPurposeToExcel() {
+        if (!currentFilteredDisposals.length) {
+            showToast("No data to export", true);
+            return;
+        }
+        const purposeMap = new Map();
+        currentFilteredDisposals.forEach(d => {
+            let purpose = d.casePurpose && d.casePurpose.trim() !== "" ? d.casePurpose.trim() : "Not Specified";
+            if (!purposeMap.has(purpose)) purposeMap.set(purpose, []);
+            purposeMap.get(purpose).push(d);
+        });
+        const rows = [['S.No.', 'Case Purpose', 'Number of Disposals']];
+        let sno = 1;
+        for (let [purpose, cases] of purposeMap.entries()) {
+            rows.push([sno++, purpose, cases.length]);
+        }
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Purpose_Wise_Disposals');
+        XLSX.writeFile(wb, `Purpose_Wise_Disposals_${new Date().toISOString().slice(0,10)}.xlsx`);
+        showToast("Exported to Excel");
     }
 
-    // ========== FIXED REMOVE DUPLICATES ==========
-    async function removeDuplicates() {
-        showToast("Scanning for duplicates...");
-        try {
-            const snapshot = await disposalsRef.once('value');
-            const data = snapshot.val();
-            if (!data || Object.keys(data).length === 0) { showToast("No records found", true); return; }
-            
-            const keyMap = new Map(); // key -> first id
-            const duplicateIds = [];
-            for (const [id, record] of Object.entries(data)) {
-                const key = getUniqueKey(record);
-                if (keyMap.has(key)) {
-                    duplicateIds.push(id);
-                } else {
-                    keyMap.set(key, id);
-                }
-            }
-            if (duplicateIds.length === 0) { showToast("No duplicates found! All records are unique."); return; }
-            if (!confirm(`Found ${duplicateIds.length} duplicate record(s). Keep ${keyMap.size} unique records?`)) return;
-            
-            showToast(`Deleting ${duplicateIds.length} duplicates...`);
-            const deletePromises = duplicateIds.map(id => disposalsRef.child(id).remove());
-            await Promise.all(deletePromises);
-            showToast(`✅ Removed ${duplicateIds.length} duplicate(s). Refreshing...`);
-        } catch (err) { showToast("Error removing duplicates: " + err.message, true); }
+    function showAllDisposals() {
+        const container = document.getElementById('listContainer');
+        const tbody = document.getElementById('allDisposalsBody');
+        if (container.style.display === 'none' || container.style.display === '') {
+            tbody.innerHTML = '';
+            disposals.forEach(d => {
+                const row = tbody.insertRow();
+                row.insertCell(0).innerText = d.caseNo;
+                row.insertCell(1).innerText = d.section || '';
+                row.insertCell(2).innerText = d.institutionDate;
+                row.insertCell(3).innerText = d.casePurpose || '';
+                row.insertCell(4).innerText = d.appellantName || '';
+                row.insertCell(5).innerText = d.respondentName || '';
+                row.insertCell(6).innerText = d.disposalDate;
+            });
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
     }
 
-    // Import Excel with duplicate prevention
-    async function importExcel(file) {
-        if (isImporting) { showToast("Import already in progress", true); return; }
-        isImporting = true;
-        const importBtn = document.getElementById("importExcelBtn");
-        const originalText = importBtn.innerHTML;
-        importBtn.innerHTML = '<span class="loading-spinner"></span> Importing...';
-        importBtn.disabled = true;
-        try {
-            const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = e => resolve(new Uint8Array(e.target.result)); reader.onerror = reject; reader.readAsArrayBuffer(file); });
+    function saveDisposal(caseNo, section, instDate, casePurpose, appellant, respondent, disposalDate) {
+        if (!caseNo || !instDate || !disposalDate) {
+            showToast("Case No, Institution Date and Disposal Date are required", true);
+            return false;
+        }
+        const newId = Date.now().toString();
+        const newDisposal = {
+            caseNo: caseNo,
+            section: section || "",
+            institutionDate: instDate,
+            casePurpose: casePurpose || "",
+            appellantName: appellant || "",
+            respondentName: respondent || "",
+            disposalDate: disposalDate
+        };
+        disposalsRef.child(newId).set(newDisposal)
+            .then(() => showToast("Disposal added successfully"))
+            .catch(err => showToast("Error: " + err.message, true));
+        return true;
+    }
+
+    function importExcel(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
@@ -419,15 +559,11 @@
             let idxApp = headerRow.findIndex(h => h.includes("appellant"));
             let idxResp = headerRow.findIndex(h => h.includes("respondent"));
             let idxDisposal = headerRow.findIndex(h => h.includes("disposal date") || h.includes("disposal"));
-            if (idxCase === -1 || idxInst === -1 || idxDisposal === -1) { showToast("Excel must have columns: 'Case No', 'Institution Date', 'Disposal Date'", true); return; }
-            
-            const currentSnapshot = await disposalsRef.once('value');
-            const existingData = currentSnapshot.val() || {};
-            const existingKeys = new Set();
-            for (const rec of Object.values(existingData)) existingKeys.add(getUniqueKey(rec));
-            
-            let imported = 0, duplicateSkipped = 0, errors = 0, skipped = 0;
-            const toAdd = [];
+            if (idxCase === -1 || idxInst === -1 || idxDisposal === -1) {
+                showToast("Excel must have columns: 'Case No', 'Institution Date', 'Disposal Date'", true);
+                return;
+            }
+            let imported = 0, errors = 0, skipped = 0;
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
                 let caseNo = row[idxCase] ? String(row[idxCase]).trim() : "";
@@ -441,79 +577,145 @@
                 let purpose = idxPurpose !== -1 ? (row[idxPurpose] ? String(row[idxPurpose]).trim() : "") : "";
                 let appellant = idxApp !== -1 ? (row[idxApp] ? String(row[idxApp]).trim() : "") : "";
                 let respondent = idxResp !== -1 ? (row[idxResp] ? String(row[idxResp]).trim() : "") : "";
-                const newRecord = { caseNo, section, institutionDate: instDate, casePurpose: purpose, appellantName: appellant, respondentName: respondent, disposalDate: dispDate };
-                const key = getUniqueKey(newRecord);
-                if (existingKeys.has(key)) { duplicateSkipped++; continue; }
-                existingKeys.add(key);
-                toAdd.push(newRecord);
+                const newId = Date.now() + "_" + i;
+                const disposal = {
+                    caseNo: caseNo,
+                    section: section,
+                    institutionDate: instDate,
+                    casePurpose: purpose,
+                    appellantName: appellant,
+                    respondentName: respondent,
+                    disposalDate: dispDate
+                };
+                disposalsRef.child(newId).set(disposal);
+                imported++;
             }
-            for (let rec of toAdd) { await disposalsRef.push().set(rec); imported++; }
-            showToast(`✅ Imported ${imported} new records. Duplicates skipped: ${duplicateSkipped}, Errors: ${errors}, Empty: ${skipped}`);
-        } catch (err) { showToast("Import failed: " + err.message, true); } 
-        finally { isImporting = false; importBtn.innerHTML = originalText; importBtn.disabled = false; document.getElementById("excelInput").value = ''; }
+            showToast(`Import completed: ${imported} added, ${errors} date errors, ${skipped} empty rows`);
+        };
+        reader.readAsArrayBuffer(file);
     }
 
     function addTestDisposal() {
-        const exists = disposals.some(d => d.caseNo === "TEST/001" && d.institutionDate === "2026-01-01");
-        if (exists) { showToast("Test case already exists", true); return; }
-        const testCase = { caseNo: "TEST/001", section: "212", institutionDate: "2026-01-01", casePurpose: "Test Purpose", appellantName: "Test Appellant", respondentName: "Test Respondent", disposalDate: new Date().toISOString().slice(0,10) };
-        disposalsRef.push().set(testCase).then(() => showToast("Test disposal added"));
+        const testCase = {
+            caseNo: "TEST/001",
+            section: "212",
+            institutionDate: "2026-01-01",
+            casePurpose: "Test Purpose",
+            appellantName: "Test Appellant",
+            respondentName: "Test Respondent",
+            disposalDate: new Date().toISOString().slice(0,10)
+        };
+        const newId = Date.now().toString();
+        disposalsRef.child(newId).set(testCase)
+            .then(() => showToast("Test disposal added. Report will auto-refresh."))
+            .catch(err => showToast("Error: " + err.message, true));
     }
 
-    function updateRecordCount() { document.getElementById("recordCountBadge").innerHTML = `📊 ${disposals.length} record${disposals.length !== 1 ? 's' : ''}`; }
-    function showAllDisposals() {
-        const container = document.getElementById('listContainer');
-        const tbody = document.getElementById('allDisposalsBody');
-        if (container.style.display === 'none' || container.style.display === '') {
-            tbody.innerHTML = ''; disposals.forEach(d => { const row = tbody.insertRow(); row.insertCell(0).innerText = d.caseNo; row.insertCell(1).innerText = d.section || ''; row.insertCell(2).innerText = d.institutionDate; row.insertCell(3).innerText = d.casePurpose || ''; row.insertCell(4).innerText = d.appellantName || ''; row.insertCell(5).innerText = d.respondentName || ''; row.insertCell(6).innerText = d.disposalDate; });
-            container.style.display = 'block';
-        } else { container.style.display = 'none'; }
+    function checkFirebaseData() {
+        const modal = document.getElementById('firebaseDataModal');
+        const pre = document.getElementById('firebaseDataPreview');
+        pre.innerText = "Loading...";
+        modal.style.display = 'flex';
+        disposalsRef.once('value', snap => {
+            const data = snap.val();
+            pre.innerText = JSON.stringify(data, null, 2);
+        }).catch(err => pre.innerText = "Error: " + err.message);
     }
-    function saveDisposal(caseNo, section, instDate, purpose, appellant, respondent, disposalDate) {
-        if (!caseNo || !instDate || !disposalDate) { showToast("Case No, Institution Date and Disposal Date required", true); return false; }
-        const newRecord = { caseNo, section, institutionDate: instDate, casePurpose: purpose, appellantName: appellant, respondentName: respondent, disposalDate };
-        if (disposals.some(d => getUniqueKey(d) === getUniqueKey(newRecord))) { showToast("Duplicate! This case already exists.", true); return false; }
-        disposalsRef.push().set(newRecord).then(() => showToast("Disposal added")); return true;
-    }
-    function exportPurposeToExcel() {
-        if (!currentFilteredDisposals.length) { showToast("No data to export", true); return; }
-        const purposeMap = new Map();
-        currentFilteredDisposals.forEach(d => { let p = d.casePurpose?.trim() || "Not Specified"; purposeMap.set(p, (purposeMap.get(p)||0)+1); });
-        const rows = [['S.No.', 'Case Purpose', 'Number of Disposals']]; let sno = 1;
-        for (let [p, count] of purposeMap.entries()) rows.push([sno++, p, count]);
-        const ws = XLSX.utils.aoa_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Purpose_Wise'); XLSX.writeFile(wb, `Purpose_Wise_${new Date().toISOString().slice(0,10)}.xlsx`);
-    }
-    function showToast(msg, isError = false) { const toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<i class="fas ${isError ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i> ${msg}`; toast.style.backgroundColor = isError ? '#b91c1c' : '#1e4a76'; document.body.appendChild(toast); setTimeout(() => toast.remove(), 3500); }
-    function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
-    function setEndDateToToday() { const today = new Date(); document.getElementById("monthEndDate").value = `${String(today.getDate()).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`; renderMonthMpr(); }
-    function checkFirebaseData() { const modal = document.getElementById('firebaseDataModal'); const pre = document.getElementById('firebaseDataPreview'); pre.innerText = "Loading..."; modal.style.display = 'flex'; disposalsRef.once('value', snap => pre.innerText = JSON.stringify(snap.val(), null, 2)).catch(err => pre.innerText = "Error: " + err.message); }
 
-    // Firebase real-time listener
+    function setEndDateToToday() {
+        const today = new Date();
+        const day = String(today.getDate()).padStart(2, '0');
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const year = today.getFullYear();
+        document.getElementById("monthEndDate").value = `${day}-${month}-${year}`;
+        showToast("End date set to today");
+        renderMonthMpr();
+    }
+
+    function showToast(msg, isError = false) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = `<i class="fas ${isError ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i> ${msg}`;
+        toast.style.backgroundColor = isError ? '#b91c1c' : '#1e4a76';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    // Real-time listener
     disposalsRef.on('value', (snapshot) => {
         const data = snapshot.val();
         disposals = data ? Object.values(data) : [];
-        updateRecordCount();
-        renderMonthMpr();
-        if (document.getElementById('listContainer').style.display === 'block') { const tbody = document.getElementById('allDisposalsBody'); tbody.innerHTML = ''; disposals.forEach(d => { const row = tbody.insertRow(); row.insertCell(0).innerText = d.caseNo; row.insertCell(1).innerText = d.section || ''; row.insertCell(2).innerText = d.institutionDate; row.insertCell(3).innerText = d.casePurpose || ''; row.insertCell(4).innerText = d.appellantName || ''; row.insertCell(5).innerText = d.respondentName || ''; row.insertCell(6).innerText = d.disposalDate; }); }
-        document.getElementById('syncDot').style.backgroundColor = '#22c55e'; document.getElementById('syncText').innerText = 'Live';
-    }, (err) => { console.error(err); document.getElementById('syncDot').style.backgroundColor = '#ef4444'; document.getElementById('syncText').innerText = 'Offline'; });
+        console.log("Firebase updated. Total disposals:", disposals.length);
+        document.getElementById('syncDot').style.backgroundColor = '#22c55e';
+        document.getElementById('syncText').innerText = 'Live';
+        if (document.getElementById('listContainer').style.display === 'block') {
+            const tbody = document.getElementById('allDisposalsBody');
+            tbody.innerHTML = '';
+            disposals.forEach(d => {
+                const row = tbody.insertRow();
+                row.insertCell(0).innerText = d.caseNo;
+                row.insertCell(1).innerText = d.section || '';
+                row.insertCell(2).innerText = d.institutionDate;
+                row.insertCell(3).innerText = d.casePurpose || '';
+                row.insertCell(4).innerText = d.appellantName || '';
+                row.insertCell(5).innerText = d.respondentName || '';
+                row.insertCell(6).innerText = d.disposalDate;
+            });
+        }
+        renderMonthMpr(); // auto-refresh
+    }, (error) => {
+        console.error(error);
+        document.getElementById('syncDot').style.backgroundColor = '#ef4444';
+        document.getElementById('syncText').innerText = 'Offline';
+        showToast("Firebase connection lost", true);
+    });
 
-    // Event bindings
+    // Event listeners
     document.getElementById("importExcelBtn").onclick = () => document.getElementById("excelInput").click();
-    document.getElementById("excelInput").onchange = e => { if(e.target.files.length) importExcel(e.target.files[0]); e.target.value = ''; };
+    document.getElementById("excelInput").onchange = (e) => {
+        if (e.target.files.length) importExcel(e.target.files[0]);
+        e.target.value = '';
+    };
     document.getElementById("showAllBtn").onclick = showAllDisposals;
     document.getElementById("closeListBtn").onclick = () => document.getElementById("listContainer").style.display = "none";
     document.getElementById("generateMonthMpr").onclick = renderMonthMpr;
     document.getElementById("setTodayBtn").onclick = setEndDateToToday;
-    document.getElementById("saveDisposalBtn").onclick = () => { const caseNo = document.getElementById("caseNo").value.trim(), section = document.getElementById("section").value.trim(), instDate = document.getElementById("instDate").value, purpose = document.getElementById("casePurpose").value.trim(), appellant = document.getElementById("appellant").value.trim(), respondent = document.getElementById("respondent").value.trim(), disposalDate = document.getElementById("disposalDate").value; if(saveDisposal(caseNo, section, instDate, purpose, appellant, respondent, disposalDate)) { document.getElementById("caseNo").value = ""; document.getElementById("section").value = ""; document.getElementById("instDate").value = ""; document.getElementById("casePurpose").value = ""; document.getElementById("appellant").value = ""; document.getElementById("respondent").value = ""; document.getElementById("disposalDate").value = ""; } };
+    document.getElementById("saveDisposalBtn").onclick = () => {
+        const caseNo = document.getElementById("caseNo").value.trim();
+        const section = document.getElementById("section").value.trim();
+        const instDate = document.getElementById("instDate").value;
+        const casePurpose = document.getElementById("casePurpose").value.trim();
+        const appellant = document.getElementById("appellant").value.trim();
+        const respondent = document.getElementById("respondent").value.trim();
+        const disposalDate = document.getElementById("disposalDate").value;
+        if (saveDisposal(caseNo, section, instDate, casePurpose, appellant, respondent, disposalDate)) {
+            document.getElementById("caseNo").value = "";
+            document.getElementById("section").value = "";
+            document.getElementById("instDate").value = "";
+            document.getElementById("casePurpose").value = "";
+            document.getElementById("appellant").value = "";
+            document.getElementById("respondent").value = "";
+            document.getElementById("disposalDate").value = "";
+        }
+    };
     document.getElementById("checkFirebaseBtn").onclick = checkFirebaseData;
     document.getElementById("addTestDataBtn").onclick = addTestDisposal;
-    document.getElementById("removeDuplicatesBtn").onclick = removeDuplicates;
-    document.getElementById("deleteAllBtn").onclick = deleteAllData;
-    document.getElementById("exportPurposeExcel").onclick = exportPurposeToExcel;
     document.getElementById("closeModalBtn").onclick = () => document.getElementById("detailModal").style.display = "none";
     document.getElementById("closeFirebaseModal").onclick = () => document.getElementById("firebaseDataModal").style.display = "none";
-    window.onclick = (e) => { if(e.target === document.getElementById("detailModal")) document.getElementById("detailModal").style.display = "none"; if(e.target === document.getElementById("firebaseDataModal")) document.getElementById("firebaseDataModal").style.display = "none"; };
+    document.getElementById("exportPurposeExcel").onclick = exportPurposeToExcel;
+    window.onclick = (event) => {
+        if (event.target === document.getElementById("detailModal")) document.getElementById("detailModal").style.display = "none";
+        if (event.target === document.getElementById("firebaseDataModal")) document.getElementById("firebaseDataModal").style.display = "none";
+    };
 </script>
 </body>
 </html>
