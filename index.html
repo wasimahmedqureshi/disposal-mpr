@@ -518,41 +518,66 @@ function showSection(id) {
 // ════════════════════════════════════════════════════════
 
 /**
- * parseDateAny: Excel value → ISO string "YYYY-MM-DD"
- * FIX: Excel serial → local date (avoid UTC offset shift)
+ * parseDateAny: Excel cell value → ISO string "YYYY-MM-DD"
+ *
+ * Handles ALL formats SheetJS can return:
+ *   1. JS Date object  — when cellDates:true (most reliable)
+ *   2. Excel serial number (integer like 46129)
+ *   3. dd-mm-yyyy / dd/mm/yyyy strings
+ *   4. yyyy-mm-dd ISO strings
+ *   5. "15-Jan-2025" style strings
  */
 function parseDateAny(val) {
-    if (!val && val !== 0) return null;
-    let s = String(val).trim();
+    if (val === null || val === undefined || val === '') return null;
 
-    // Excel serial number (numeric, no date separators)
+    // ── Case 1: JS Date object (SheetJS cellDates:true) ──────────────
+    if (val instanceof Date) {
+        if (isNaN(val.getTime())) return null;
+        // Use local date parts to avoid UTC midnight IST shift
+        let y = val.getFullYear(), mo = val.getMonth() + 1, d = val.getDate();
+        if (y < 1900 || y > 2100) return null;
+        return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+
+    // ── Case 2: Pure integer / Excel serial number ────────────────────
+    if (typeof val === 'number' && Number.isInteger(val) && val > 1 && val < 60000) {
+        // Excel epoch: Dec 30 1899 UTC
+        let d = new Date(Date.UTC(1899, 11, 30) + val * 86400000);
+        let y = d.getUTCFullYear(), mo = d.getUTCMonth() + 1, day = d.getUTCDate();
+        return `${y}-${String(mo).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    }
+
+    let s = String(val).trim();
+    if (!s) return null;
+
+    // ── Case 3: Numeric string that looks like Excel serial ───────────
     if (/^\d{4,6}$/.test(s)) {
         let n = parseInt(s, 10);
         if (n > 1 && n < 60000) {
-            // Convert to local date to avoid IST/UTC day shift
             let d = new Date(Date.UTC(1899, 11, 30) + n * 86400000);
-            let y = d.getUTCFullYear(), mo = d.getUTCMonth()+1, day = d.getUTCDate();
+            let y = d.getUTCFullYear(), mo = d.getUTCMonth() + 1, day = d.getUTCDate();
             return `${y}-${String(mo).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
         }
     }
 
-    // dd-mm-yyyy / dd/mm/yyyy / dd.mm.yyyy
+    // ── Case 4: dd-mm-yyyy / dd/mm/yyyy / dd.mm.yyyy ─────────────────
     let m1 = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
     if (m1) {
         let [, d, mo, y] = m1;
         if (y.length === 2) y = '20' + y;
         return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
     }
-    // yyyy-mm-dd
-    let m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (m2) return s;
 
-    // Excel formatted date string like "15-Jan-2025"
+    // ── Case 5: yyyy-mm-dd (already ISO) ─────────────────────────────
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+    // ── Case 6: Any other parseable date string ───────────────────────
     let t = new Date(s);
     if (!isNaN(t.getTime())) {
-        let y = t.getFullYear(), mo = t.getMonth()+1, d = t.getDate();
+        let y = t.getFullYear(), mo = t.getMonth() + 1, d = t.getDate();
         return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     }
+
     return null;
 }
 
@@ -929,7 +954,7 @@ async function importExcel(file) {
             r.onerror = rej;
             r.readAsArrayBuffer(file);
         });
-        const wb = XLSX.read(data, { type:'array', cellDates: false });
+        const wb = XLSX.read(data, { type:'array', cellDates: true });  // cellDates:true → JS Date objects for date cells
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:"", raw:true });
         if (rows.length < 2) { showToast("No data rows", "error"); return; }
@@ -960,10 +985,11 @@ async function importExcel(file) {
 
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            let caseNo = row[idxCase] ? String(row[idxCase]).trim() : "";
-            let instRaw = row[idxInst] !== undefined && row[idxInst] !== "" ? String(row[idxInst]).trim() : "";
-            let dispRaw = row[idxDisposal] !== undefined && row[idxDisposal] !== "" ? String(row[idxDisposal]).trim() : "";
-            if (!caseNo || !instRaw || !dispRaw) { skipped++; continue; }
+            let caseNo = row[idxCase] != null ? String(row[idxCase]).trim() : "";
+            // Pass raw cell value directly — parseDateAny handles Date objects, numbers & strings
+            let instRaw = row[idxInst];
+            let dispRaw = row[idxDisposal];
+            if (!caseNo || instRaw == null || instRaw === "" || dispRaw == null || dispRaw === "") { skipped++; continue; }
             let instDate = parseDateAny(instRaw);
             let dispDate = parseDateAny(dispRaw);
             if (!instDate || !dispDate) { errors++; continue; }
