@@ -348,10 +348,11 @@
                                     <th>2–3 Years</th>
                                     <th>1–2 Years</th>
                                     <th>&lt; 1 Year</th>
+                                    <th>Age Unknown</th>
                                 </tr>
                             </thead>
                             <tbody id="monthMprBody">
-                                <tr><td colspan="9" style="color:var(--muted); padding:24px;">Enter dates and click Generate MPR.</td></tr>
+                                <tr><td colspan="10" style="color:var(--muted); padding:24px;">Enter dates and click Generate MPR.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -480,7 +481,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <script>
 // ════════════════════════════════════════════════════════
-// FIREBASE CONFIG
+// FIREBASE CONFIG — safe init with retry loop
 // ════════════════════════════════════════════════════════
 const firebaseConfig = {
     apiKey: "AIzaSyAt12Y0CONs7uHH23pmJu2_6aIMBrdbNhw",
@@ -491,8 +492,28 @@ const firebaseConfig = {
     messagingSenderId: "887615168004",
     appId: "1:887615168004:web:e159c0b4c71b825f4c9f51"
 };
-firebase.initializeApp(firebaseConfig);
-const disposalsRef = firebase.database().ref('disposals');
+
+let disposalsRef = null;
+
+// Retry until firebase global is available (handles CDN/network race condition)
+function waitForFirebase(cb, attempts) {
+    attempts = attempts || 0;
+    if (typeof firebase !== 'undefined' && firebase.database) {
+        try {
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            disposalsRef = firebase.database().ref('disposals');
+            cb();
+        } catch(e) {
+            showToast('Firebase init error: ' + e.message, 'error');
+        }
+    } else if (attempts < 60) {
+        setTimeout(function(){ waitForFirebase(cb, attempts + 1); }, 100);
+    } else {
+        document.getElementById('syncDot').style.background = '#ef4444';
+        document.getElementById('syncText').textContent = 'Offline';
+        showToast('Firebase load failed — check network', 'error');
+    }
+}
 
 let disposals = [];
 let currentFilteredDisposals = [];
@@ -597,8 +618,9 @@ function parseDDMMYYYY(str, endOfDay = false) {
 }
 
 function getAgeYears(instDate, disposalDate) {
+    if (!instDate) return null;  // Institution Date blank → age unknown
     let inst = new Date(instDate), disp = new Date(disposalDate);
-    if (isNaN(inst) || isNaN(disp)) return 0;
+    if (isNaN(inst) || isNaN(disp)) return null;
     let years = disp.getFullYear() - inst.getFullYear();
     let md = disp.getMonth() - inst.getMonth();
     if (md < 0 || (md === 0 && disp.getDate() < inst.getDate())) years--;
@@ -606,6 +628,7 @@ function getAgeYears(instDate, disposalDate) {
 }
 
 function getBucket(years) {
+    if (years === null) return "Age Unknown";
     if (years >= 5) return "Over 5 Years";
     if (years >= 3) return "3-5 Years";
     if (years >= 2) return "2-3 Years";
@@ -643,8 +666,8 @@ function renderDashboard() {
     let under1 = 0, over5 = 0;
     disposals.forEach(d => {
         let age = getAgeYears(d.institutionDate, d.disposalDate);
-        if (age < 1) under1++;
-        if (age >= 5) over5++;
+        if (age !== null && age < 1) under1++;
+        if (age !== null && age >= 5) over5++;
     });
     document.getElementById('statUnder1').textContent = under1;
     document.getElementById('statOver5').textContent = over5;
@@ -679,8 +702,8 @@ function buildMonthMap(arr) {
     return map;
 }
 
-const BUCKET_KEYS = ["Over 5 Years","3-5 Years","2-3 Years","1-2 Years","Less Than 1 Year"];
-const BUCKET_HEADS = [">5 Yrs","3–5 Yrs","2–3 Yrs","1–2 Yrs","<1 Yr"];
+const BUCKET_KEYS = ["Over 5 Years","3-5 Years","2-3 Years","1-2 Years","Less Than 1 Year","Age Unknown"];
+const BUCKET_HEADS = [">5 Yrs","3–5 Yrs","2–3 Yrs","1–2 Yrs","<1 Yr","Age ?"];
 
 function buildMprHtml(monthMap, allFiltered, mini = false) {
     window._monthBucketCases = {};
@@ -772,7 +795,7 @@ function renderMonthMpr() {
 
     if (!currentFilteredDisposals.length) {
         document.getElementById("monthMprBody").innerHTML =
-            '<tr><td colspan="9" style="color:var(--muted);padding:24px;">No disposals in selected date range.</td></tr>';
+            '<tr><td colspan="10" style="color:var(--muted);padding:24px;">No disposals in selected date range.</td></tr>';
         renderPurposeWise();
         return;
     }
@@ -829,9 +852,11 @@ function renderAllRecords(filter = '') {
     arr.sort((a,b)=>(b.disposalDate||'').localeCompare(a.disposalDate||''));
     tbody.innerHTML = arr.map((d, i) => {
         let age = getAgeYears(d.institutionDate, d.disposalDate);
-        let ageBadge = age >= 5 ? `<span style="color:var(--danger);font-weight:700;">${age}y ⚠</span>`
-                     : age >= 1 ? `<span style="color:var(--warn);">${age}y</span>`
-                     : `<span style="color:var(--success);">${age}y</span>`;
+        let ageBadge = age === null
+            ? `<span style="color:var(--muted);">—</span>`
+            : age >= 5 ? `<span style="color:var(--danger);font-weight:700;">${age}y ⚠</span>`
+            : age >= 1 ? `<span style="color:var(--warn);">${age}y</span>`
+            : `<span style="color:var(--success);">${age}y</span>`;
         return `<tr>
             <td>${i+1}</td>
             <td>${escapeHtml(d.caseNo)}</td>
@@ -856,6 +881,7 @@ function showCaseList(title, caseArray) {
     const tbody = document.getElementById('modalBody');
     tbody.innerHTML = caseArray.map(c => {
         let age = getAgeYears(c.institutionDate, c.disposalDate);
+        let ageStr = age === null ? '—' : age + 'y';
         return `<tr>
             <td>${escapeHtml(c.caseNo)}</td>
             <td>${escapeHtml(c.section||'')}</td>
@@ -864,7 +890,7 @@ function showCaseList(title, caseArray) {
             <td>${escapeHtml(c.appellantName||'')}</td>
             <td>${escapeHtml(c.respondentName||'')}</td>
             <td>${formatDateDisplay(c.disposalDate)}</td>
-            <td>${age}y</td>
+            <td>${ageStr}</td>
         </tr>`;
     }).join('');
     document.getElementById('detailModal').style.display = 'flex';
@@ -873,7 +899,10 @@ function showCaseList(title, caseArray) {
 
 function exportCaseListExcel(title, arr) {
     const rows = [['Case No','Section','Institution Date','Purpose','Appellant','Respondent','Disposal Date','Age (Years)']];
-    arr.forEach(c => rows.push([c.caseNo, c.section||'', c.institutionDate, c.casePurpose||'', c.appellantName||'', c.respondentName||'', c.disposalDate, getAgeYears(c.institutionDate,c.disposalDate)]));
+    arr.forEach(c => {
+        let age = getAgeYears(c.institutionDate, c.disposalDate);
+        rows.push([c.caseNo, c.section||'', c.institutionDate, c.casePurpose||'', c.appellantName||'', c.respondentName||'', c.disposalDate, age === null ? '' : age]);
+    });
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Cases');
@@ -989,10 +1018,11 @@ async function importExcel(file) {
             // Pass raw cell value directly — parseDateAny handles Date objects, numbers & strings
             let instRaw = row[idxInst];
             let dispRaw = row[idxDisposal];
-            if (!caseNo || instRaw == null || instRaw === "" || dispRaw == null || dispRaw === "") { skipped++; continue; }
-            let instDate = parseDateAny(instRaw);
+            // Only Case No + Disposal Date are mandatory; Institution Date can be blank
+            if (!caseNo || dispRaw == null || dispRaw === "") { skipped++; continue; }
+            let instDate = (instRaw != null && instRaw !== "") ? (parseDateAny(instRaw) || "") : "";
             let dispDate = parseDateAny(dispRaw);
-            if (!instDate || !dispDate) { errors++; continue; }
+            if (!dispDate) { errors++; continue; }
             let section  = idxSection  !== -1 ? (String(row[idxSection] ||'')).trim() : "";
             let purpose  = idxPurpose  !== -1 ? (String(row[idxPurpose] ||'')).trim() : "";
             let appellant= idxApp      !== -1 ? (String(row[idxApp]     ||'')).trim() : "";
@@ -1136,24 +1166,28 @@ function updateRecordCount() {
 }
 
 // ════════════════════════════════════════════════════════
-// FIREBASE REAL-TIME LISTENER
 // ════════════════════════════════════════════════════════
-disposalsRef.on('value', snap => {
-    const data = snap.val();
-    disposals = data ? Object.values(data) : [];
-    updateRecordCount();
-    renderDashboard();
-    if (document.getElementById('sec-records').classList.contains('active')) renderAllRecords();
-    document.getElementById('syncDot').style.background = '#22c55e';
-    document.getElementById('syncDot').style.boxShadow = '0 0 6px #22c55e';
-    document.getElementById('syncText').textContent = 'Live';
-}, err => {
-    console.error(err);
-    document.getElementById('syncDot').style.background = '#ef4444';
-    document.getElementById('syncDot').style.boxShadow = '0 0 6px #ef4444';
-    document.getElementById('syncText').textContent = 'Offline';
-    showToast("Firebase connection lost", "error");
-});
+// APP START — wait for Firebase then attach listener
+// ════════════════════════════════════════════════════════
+function startApp() {
+    // Real-time listener
+    disposalsRef.on('value', snap => {
+        const data = snap.val();
+        disposals = data ? Object.values(data) : [];
+        updateRecordCount();
+        renderDashboard();
+        if (document.getElementById('sec-records').classList.contains('active')) renderAllRecords();
+        document.getElementById('syncDot').style.background = '#22c55e';
+        document.getElementById('syncDot').style.boxShadow = '0 0 6px #22c55e';
+        document.getElementById('syncText').textContent = 'Live';
+    }, err => {
+        console.error(err);
+        document.getElementById('syncDot').style.background = '#ef4444';
+        document.getElementById('syncDot').style.boxShadow = '0 0 6px #ef4444';
+        document.getElementById('syncText').textContent = 'Offline';
+        showToast("Firebase connection lost", "error");
+    });
+}
 
 // ════════════════════════════════════════════════════════
 // EVENT LISTENERS
@@ -1170,6 +1204,14 @@ window.onclick = e => {
     if (e.target === document.getElementById("detailModal")) document.getElementById("detailModal").style.display = "none";
     if (e.target === document.getElementById("firebaseDataModal")) document.getElementById("firebaseDataModal").style.display = "none";
 };
+
+// ── BOOT ─────────────────────────────────────────────────
+// DOMContentLoaded guarantees DOM is ready; waitForFirebase
+// retries until the CDN scripts have executed (handles slow
+// networks, GitHub Pages, PWA cache, and any load-order race).
+document.addEventListener('DOMContentLoaded', function() {
+    waitForFirebase(startApp);
+});
 </script>
 </body>
 </html>
