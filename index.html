@@ -476,6 +476,7 @@
 <!-- Toast container -->
 <div class="toast-wrap" id="toastWrap"></div>
 
+<!-- Firebase & SheetJS loaded via CDN in correct order -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -619,11 +620,14 @@ function parseDDMMYYYY(str, endOfDay = false) {
 
 function getAgeYears(instDate, disposalDate) {
     if (!instDate) return null;  // Institution Date blank → age unknown
-    let inst = new Date(instDate), disp = new Date(disposalDate);
-    if (isNaN(inst) || isNaN(disp)) return null;
-    let years = disp.getFullYear() - inst.getFullYear();
-    let md = disp.getMonth() - inst.getMonth();
-    if (md < 0 || (md === 0 && disp.getDate() < inst.getDate())) years--;
+    // Normalize both dates (handles old serial-string stored values)
+    let instISO = normalizeISODate(instDate);
+    let dispISO = normalizeISODate(disposalDate);
+    if (!instISO || !dispISO) return null;
+    let [iy,im,id] = instISO.split('-').map(Number);
+    let [dy,dm,dd] = dispISO.split('-').map(Number);
+    let years = dy - iy;
+    if (dm < im || (dm === im && dd < id)) years--;
     return Math.max(0, years);
 }
 
@@ -638,7 +642,10 @@ function getBucket(years) {
 
 function formatDateDisplay(isoStr) {
     if (!isoStr) return '';
-    let [y, m, d] = isoStr.split('-');
+    // normalizeISODate defined later but JS hoists — safe to call here at runtime
+    let iso = (typeof normalizeISODate === 'function') ? normalizeISODate(isoStr) : isoStr;
+    if (!iso) return isoStr; // fallback: show raw value
+    let [y, m, d] = iso.split('-');
     return `${d}-${m}-${y}`;
 }
 
@@ -659,8 +666,10 @@ function renderDashboard() {
     document.getElementById('statTotal').textContent = disposals.length;
     const now = new Date();
     const thisMonth = disposals.filter(d => {
-        let dt = new Date(d.disposalDate);
-        return dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear();
+        let iso = normalizeISODate(d.disposalDate);
+        if (!iso) return false;
+        let [y,mo] = iso.split('-').map(Number);
+        return mo-1 === now.getMonth() && y === now.getFullYear();
     }).length;
     document.getElementById('statThisMonth').textContent = thisMonth;
     let under1 = 0, over5 = 0;
@@ -679,9 +688,15 @@ function renderDashboardMpr() {
     const wrap = document.getElementById('dashboardMprWrap');
     if (!disposals.length) { wrap.innerHTML = '<p style="color:var(--muted)">No data yet.</p>'; return; }
     const now = new Date();
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
-    const endToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-    const filtered = disposals.filter(d => { let dt = new Date(d.disposalDate); return dt >= startOfYear && dt <= endToday; });
+    const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+    const endToday   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const filtered = disposals.filter(d => {
+        let iso = normalizeISODate(d.disposalDate);
+        if (!iso) return false;
+        let [y,mo,day] = iso.split('-').map(Number);
+        let dt = new Date(y, mo-1, day, 12, 0, 0);
+        return dt >= startOfYear && dt <= endToday;
+    });
     if (!filtered.length) { wrap.innerHTML = '<p style="color:var(--muted)">No disposals this year.</p>'; return; }
     const monthMap = buildMonthMap(filtered);
     wrap.innerHTML = buildMprHtml(monthMap, filtered, true);
@@ -691,11 +706,32 @@ function renderDashboardMpr() {
 // ════════════════════════════════════════════════════════
 // MPR RENDER — CORE (fixed)
 // ════════════════════════════════════════════════════════
+function normalizeISODate(val) {
+    // Convert any stored date value (ISO string, serial number, etc.) to YYYY-MM-DD
+    if (!val && val !== 0) return null;
+    // Already ISO YYYY-MM-DD
+    if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        let y = parseInt(val.slice(0,4));
+        if (y >= 1900 && y <= 2100) return val;
+    }
+    // Try parseDateAny for any other format (serial number string, etc.)
+    let parsed = parseDateAny(val);
+    if (parsed) {
+        let y = parseInt(parsed.slice(0,4));
+        if (y >= 1900 && y <= 2100) return parsed;
+    }
+    return null;
+}
+
 function buildMonthMap(arr) {
     const map = new Map();
     arr.forEach(d => {
-        let dt = new Date(d.disposalDate);
-        let key = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+        let isoDate = normalizeISODate(d.disposalDate);
+        if (!isoDate) return; // skip records with unparseable disposal date
+        // Ensure record has clean disposal date for downstream use
+        d._cleanDisposalDate = isoDate;
+        let [y, mo] = isoDate.split('-');
+        let key = `${y}-${mo}`;
         if (!map.has(key)) map.set(key, []);
         map.get(key).push(d);
     });
@@ -789,7 +825,11 @@ function renderMonthMpr() {
     }
 
     currentFilteredDisposals = disposals.filter(d => {
-        let disp = new Date(d.disposalDate);
+        let iso = normalizeISODate(d.disposalDate);
+        if (!iso) return false;
+        // Parse as local date to avoid UTC midnight shift
+        let [y,mo,day] = iso.split('-').map(Number);
+        let disp = new Date(y, mo-1, day, 12, 0, 0); // noon = safe from DST
         return disp >= startDate && disp <= endDate;
     });
 
