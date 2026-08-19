@@ -763,11 +763,7 @@ function parseDateAny(val) {
     let s = String(val).trim();
     if (!isNaN(s) && !s.includes('-') && !s.includes('/') && !s.includes('.')) {
         let n = parseFloat(s);
-        if (n > 1 && n < 60000) {
-            // Use Excel epoch (Dec 30, 1899 UTC) — avoids IST/timezone shifts
-            const dt = new Date(Date.UTC(1899, 11, 30) + n * 86400000);
-            return dt.toISOString().slice(0, 10);
-        }
+        if (n > 1 && n < 60000) return new Date((n-25569)*86400000).toISOString().slice(0,10);
     }
     let parts = s.split(/[-/]/);
     if (parts.length === 3) {
@@ -787,9 +783,7 @@ function parseDDMMYYYY(str) {
     if (parts.length !== 3) return null;
     let day=parseInt(parts[0],10), month=parseInt(parts[1],10), year=parseInt(parts[2],10);
     if (isNaN(day)||isNaN(month)||isNaN(year)) return null;
-    // Use Date.UTC so startDate/endDate are UTC midnight — same timezone as
-    // disposalDate strings stored as "YYYY-MM-DD" (parsed as UTC by JS)
-    return new Date(Date.UTC(year, month-1, day));
+    return new Date(year, month-1, day);
 }
 function getAgeYears(instDate, disposalDate) {
     let inst=new Date(instDate), disp=new Date(disposalDate);
@@ -835,8 +829,6 @@ function renderMonthMpr() {
     let startDate = parseDDMMYYYY(startStr);
     let endDate   = parseDDMMYYYY(endStr);
     if (!startDate||!endDate||startDate>endDate) { showToast('Please enter valid date range', true); return; }
-    // Extend endDate to 23:59:59.999 UTC so disposals on the last day are never excluded
-    endDate = new Date(endDate.getTime() + 86399999);
 
     currentFilteredDisposals = disposals.filter(d => {
         let disp = new Date(d.disposalDate);
@@ -1079,13 +1071,10 @@ async function importExcel(file) {
             let caseNo  = row[iCase]  ? String(row[iCase]).trim()  : "";
             let instRaw = row[iInst]  ? String(row[iInst]).trim()  : "";
             let dispRaw = row[iDisp]  ? String(row[iDisp]).trim()  : "";
-            // Only case no and disposal date are mandatory — skip if either missing
-            if (!caseNo || !dispRaw) { skipped++; continue; }
+            if (!caseNo||!instRaw||!dispRaw) { skipped++; continue; }
+            let instDate = parseDateAny(instRaw);
             let dispDate = parseDateAny(dispRaw);
-            if (!dispDate) { errors++; continue; }
-            // Institution date: parse if present; if empty or invalid, fall back to disposal date
-            // so rows with blank institution date are never silently dropped
-            let instDate = parseDateAny(instRaw) || dispDate;
+            if (!instDate||!dispDate) { errors++; continue; }
             const rec = {
                 caseNo,
                 section:       iSection!==-1 ? (row[iSection]?String(row[iSection]).trim():"") : "",
