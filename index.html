@@ -1079,10 +1079,13 @@ async function importExcel(file) {
             let caseNo  = row[iCase]  ? String(row[iCase]).trim()  : "";
             let instRaw = row[iInst]  ? String(row[iInst]).trim()  : "";
             let dispRaw = row[iDisp]  ? String(row[iDisp]).trim()  : "";
-            if (!caseNo||!instRaw||!dispRaw) { skipped++; continue; }
-            let instDate = parseDateAny(instRaw);
+            // Only case no and disposal date are mandatory — skip if either missing
+            if (!caseNo || !dispRaw) { skipped++; continue; }
             let dispDate = parseDateAny(dispRaw);
-            if (!instDate||!dispDate) { errors++; continue; }
+            if (!dispDate) { errors++; continue; }
+            // Institution date: parse if present; if empty or invalid, fall back to disposal date
+            // so rows with blank institution date are never silently dropped
+            let instDate = parseDateAny(instRaw) || dispDate;
             const rec = {
                 caseNo,
                 section:       iSection!==-1 ? (row[iSection]?String(row[iSection]).trim():"") : "",
